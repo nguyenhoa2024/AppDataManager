@@ -240,11 +240,11 @@
 				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
 				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 4; EXCLUDED_ARCHS = arm64e;
+				CURRENT_PROJECT_VERSION = 5; EXCLUDED_ARCHS = arm64e;
 				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				OTHER_LDFLAGS = "-lcompression";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -263,11 +263,11 @@
 				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
 				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 4; EXCLUDED_ARCHS = arm64e;
+				CURRENT_PROJECT_VERSION = 5; EXCLUDED_ARCHS = arm64e;
 				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				OTHER_LDFLAGS = "-lcompression";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
 				PRODUCT_NAME = "$(TARGET_NAME)";

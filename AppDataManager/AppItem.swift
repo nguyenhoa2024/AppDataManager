@@ -55,6 +55,7 @@ enum AppError: LocalizedError {
     case containerNotFound(String)
     case invalidManifest
     case nothingSelected
+    case noData(String)
     case insufficientDiskSpace(needed: Int64, available: Int64)
     case zipFailed(String)
 
@@ -63,6 +64,7 @@ enum AppError: LocalizedError {
         case .containerNotFound(let id): return "Khong tim thay container: \(id)"
         case .invalidManifest:           return "File backup bi loi"
         case .nothingSelected:           return "Chon it nhat 1 app"
+        case .noData(let name):          return "\(name) khong co du lieu de backup (app rong)"
         case .insufficientDiskSpace(let needed, let available):
             let f = ByteCountFormatter(); f.countStyle = .file
             return "Khong du bo nho. Can \(f.string(fromByteCount: needed)), "

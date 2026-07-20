@@ -2,6 +2,12 @@
 
 Mỗi bản build có "build tag" dạng `v<version>-<ngày>-<giờ>` hiện ngay ở đầu màn hình chính và trong Cài đặt → so với dòng dưới đây là biết máy đang chạy bản nào.
 
+## v1.4
+
+- **Chặn backup rỗng.** App vừa bị reset (chỉ còn khung thư mục, không keychain) sẽ không tạo được backup — trước đây tạo ra file ~3KB vô dụng mà restore lại **xoá sạch data hiện có**. Nay báo "app rỗng, không backup".
+- **Chặn restore từ backup rỗng.** Nếu bản backup không có dữ liệu thật, restore sẽ **giữ nguyên** data hiện tại thay vì wipe rồi nạp số 0. (Vá đúng vụ "restore xong container rỗng, app không như cũ".)
+- **Reset xoá keychain triệt để hơn.** Xoá trên mọi class (password, internet password, key, certificate, identity) + cả bản iCloud-synced, và xoá thẳng theo access group — cho "xoá data app" thật sự sạch. Vẫn chỉ đụng keychain của app được chọn.
+
 ## v1.3
 
 - **Sửa gốc lỗi keychain — vá cả 3 triệu chứng cùng lúc:** LINE restore xong vẫn đòi xác thực; Facebook reset xong vẫn còn đăng nhập. Nguyên nhân chung: nhiều app dùng nhóm keychain **không suy được từ bundle ID** (LINE: `ZW4U99SQQ3.com.linecorp.trident.shared`; FB: `T84QZS65DQ.platformFamily`) nên bộ lọc cũ bỏ sót → reset không xoá, backup không lưu. Nay **đọc thẳng `keychain-access-groups` từ entitlements của app** nên bắt đúng mọi nhóm. Reset xoá sạch, backup/restore giữ được session.

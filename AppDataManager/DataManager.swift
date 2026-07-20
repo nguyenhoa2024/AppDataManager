@@ -433,6 +433,18 @@ final class DataManager {
         if let data = try? JSONSerialization.data(withJSONObject: keychainItems, options: []) {
             try? data.write(to: appDir.appendingPathComponent("keychain.json"))
         }
+
+        // Chan backup rong: app vua bi reset (chi con khung thu muc, khong file
+        // that, khong keychain) thi backup se vo dung — restore lai chinh no se
+        // xoa sach data hien co. Khong luu app nhu vay.
+        let fileCount = realFileCount(under: appDir.appendingPathComponent("data"))
+            + groupIDs.reduce(0) { $0 + realFileCount(under: appDir.appendingPathComponent("groups/\($1)")) }
+            + pluginIDs.reduce(0) { $0 + realFileCount(under: appDir.appendingPathComponent("plugins/\($1)")) }
+        if fileCount == 0 && keychainItems.isEmpty {
+            try? fm.removeItem(at: appDir)
+            throw AppError.noData(item.displayName)
+        }
+
         plog("  staged \(item.bundleID): \(groupIDs.count) group, \(pluginIDs.count) plugin, \(keychainItems.count) keychain")
 
         return [
@@ -442,6 +454,24 @@ final class DataManager {
             "appGroups":   groupIDs,
             "plugins":     pluginIDs,
         ]
+    }
+
+    /// So file THAT (bo qua thu muc) duoi `url`.
+    /// Container vua bi reset chi con khung thu muc rong -> 0 file; app that co
+    /// du lieu -> >0 file. Dem file (khong dem byte) de file 0-byte van tinh la
+    /// co du lieu.
+    private func realFileCount(under url: URL) -> Int {
+        guard let en = fm.enumerator(at: url,
+            includingPropertiesForKeys: [.isRegularFileKey], options: []) else { return 0 }
+        var count = 0
+        for case let f as URL in en {
+            autoreleasepool {
+                if (try? f.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                    count += 1
+                }
+            }
+        }
+        return count
     }
 
     /// Giu lai `maxBackupsPerApp` file backup gop moi nhat o thu muc goc.
@@ -570,7 +600,7 @@ final class DataManager {
                                 names.append(dn)
                                 plog("restore: \(dn) ✓")
                             } else {
-                                plog("restore: bo qua \(dn) (khong tim container)")
+                                plog("restore: bo qua \(dn) (rong hoac khong tim container)")
                             }
                         }
                         guard !names.isEmpty else { throw AppError.containerNotFound("khong app nao") }
@@ -588,8 +618,10 @@ final class DataManager {
                         ]
                         // v2 co data/ ngay goc; v1 co container/<sub>
                         let hasData = self.fm.fileExists(atPath: tmp.appendingPathComponent("data").path)
-                        _ = self.restoreOneApp(appDir: tmp, manifest: single, legacyV1: !hasData)
-                        resultMsg = "Restore xong: \(dn) ✓"
+                        let ok = self.restoreOneApp(appDir: tmp, manifest: single, legacyV1: !hasData)
+                        resultMsg = ok
+                            ? "Restore xong: \(dn) ✓"
+                            : "Bo qua \(dn): ban backup rong (giu nguyen data hien tai)"
                     }
 
                     task.end()
@@ -616,6 +648,28 @@ final class DataManager {
         guard let mainURL = containers.data else {
             plog("restore: khong tim container \(bundleID)"); return false
         }
+
+        // Chan restore tu ban backup RONG: neu backup khong co du lieu that
+        // (vd file tao khi app dang bi reset), KHONG wipe container — neu khong
+        // se xoa sach data hien co ma nap lai so 0.
+        let kcBytes = Int64((try? appDir.appendingPathComponent("keychain.json")
+            .resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        var fileCount: Int = legacyV1
+            ? realFileCount(under: appDir.appendingPathComponent("container"))
+            : realFileCount(under: appDir.appendingPathComponent("data"))
+        if !legacyV1 {
+            for gid in (appM["appGroups"] as? [String]) ?? [] {
+                fileCount += realFileCount(under: appDir.appendingPathComponent("groups/\(gid)"))
+            }
+            for pid in (appM["plugins"] as? [String]) ?? [] {
+                fileCount += realFileCount(under: appDir.appendingPathComponent("plugins/\(pid)"))
+            }
+        }
+        if fileCount == 0 && kcBytes <= 8 {
+            plog("restore: bo qua \(bundleID) — ban backup rong, giu nguyen data hien tai")
+            return false
+        }
+
         let procRaw = (appM["processName"] as? String) ?? ""
         let proc = procRaw.isEmpty
             ? String(bundleID.components(separatedBy: ".").last?.prefix(15) ?? "")

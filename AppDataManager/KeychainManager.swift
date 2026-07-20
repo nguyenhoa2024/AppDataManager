@@ -8,13 +8,23 @@ import Security
 /// resolve duoc cho bundleID dang xu ly — neu khong se dung nham item cua app khac.
 enum KeychainManager {
 
-    /// Chi dung 2 class chua du lieu dang nhap.
-    /// Khong dung toi kSecClassCertificate / kSecClassKey / kSecClassIdentity:
-    /// do la chung chi va khoa dung chung o muc he thong, xoa nham se hong
-    /// nhung thu khong lien quan den app dang chon.
+    /// Class dung khi BACKUP/RESTORE: chi 2 class chua du lieu dang nhap.
+    /// Token/session gan nhu luon nam o 2 class nay, va SecItemAdd chi nap lai
+    /// duoc password (key/cert/identity can format rieng).
     private static let itemClasses: [CFString] = [
         kSecClassGenericPassword,
         kSecClassInternetPassword,
+    ]
+
+    /// Class dung khi RESET (xoa): quet het, ke ca khoa/chung chi/identity —
+    /// de "xoa data app" that su sach. Van loc theo access group cua app nen
+    /// khong dung toi keychain cua app khac.
+    private static let clearClasses: [CFString] = [
+        kSecClassGenericPassword,
+        kSecClassInternetPassword,
+        kSecClassKey,
+        kSecClassCertificate,
+        kSecClassIdentity,
     ]
 
     // MARK: - Resolve access group
@@ -28,14 +38,23 @@ enum KeychainManager {
     ///     Neu chi suy tu bundleID se bo sot -> restore khong lay lai duoc session.
     ///  2. Suy tu chinh bundleID (bundleID va vendor prefix).
     ///  3. Quet keychain thuc te, lay group co duoi khop bundleID/vendor.
+    /// Nhom CHAC CHAN cua app: tu entitlements + bundleID + vendor.
+    /// Xoa bat cu class nao trong nhom nay deu an toan (dung la cua app).
+    /// Dung cho viec xoa key/cert/identity — khong dinh toi nhom doan.
+    static func ownGroups(bundleID: String) -> Set<String> {
+        let parts  = bundleID.components(separatedBy: ".")
+        let vendor = parts.count >= 2 ? "\(parts[0]).\(parts[1])" : bundleID
+        var groups = Set([bundleID, vendor])
+        groups.formUnion(entitlementKeychainGroups(bundleID: bundleID))
+        return groups
+    }
+
     static func resolveAccessGroups(bundleID: String) -> [String] {
         let parts  = bundleID.components(separatedBy: ".")
         let vendor = parts.count >= 2 ? "\(parts[0]).\(parts[1])" : bundleID
 
-        var groups = Set([bundleID, vendor])
-
-        // (1) Tu entitlements — nguon dang tin nhat
-        groups.formUnion(entitlementKeychainGroups(bundleID: bundleID))
+        // (1)+(2) Nhom chac chan (entitlements + bundleID + vendor)
+        var groups = ownGroups(bundleID: bundleID)
 
         // (3) Quet ca hai class: app chi luu internet password se khong lo ra
         // group co team ID neu chi quet generic password.
@@ -244,13 +263,41 @@ enum KeychainManager {
 
     /// Xoa keychain cua rieng `bundleID`. Item nao khong thuoc access group da
     /// resolve thi bo qua — khong dung den keychain cua app khac.
+    ///
+    /// Hai luot cho chac:
+    ///  1. Xoa thang theo (class × access group) — quet sach ca nhung item ma
+    ///     minh khong liet ke duoc tung thuoc tinh.
+    ///  2. Quet-va-loc: bat cac item con sot ma access group nam trong danh sach.
     static func clear(bundleID: String) {
-        let groups = Set(resolveAccessGroups(bundleID: bundleID))
-        guard !groups.isEmpty else { return }
-        plog("keychain clear \(bundleID): \(groups.count) groups")
+        let allGroups = Set(resolveAccessGroups(bundleID: bundleID))
+        let own       = ownGroups(bundleID: bundleID)
+        guard !allGroups.isEmpty else { return }
+        plog("keychain clear \(bundleID): \(allGroups.count) groups (\(own.count) chac chan)")
+
+        // Password quet rong (ca nhom doan); key/cert/identity chi tren nhom
+        // chac chan cua app, tranh xoa nham khoa/chung chi app anh em dung chung.
+        let passwordClasses = Set([kSecClassGenericPassword, kSecClassInternetPassword].map { $0 as String })
+        func groupsFor(_ cls: CFString) -> Set<String> {
+            passwordClasses.contains(cls as String) ? allGroups : own
+        }
 
         var deleted = 0
-        for cls in itemClasses {
+
+        // Luot 1: xoa theo group (ke ca ban iCloud-synced)
+        for cls in clearClasses {
+            for g in groupsFor(cls) {
+                let q: [String: Any] = [
+                    kSecClass as String:              cls,
+                    kSecAttrAccessGroup as String:    g,
+                    kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
+                ]
+                if SecItemDelete(q as CFDictionary) == errSecSuccess { deleted += 1 }
+            }
+        }
+
+        // Luot 2: quet-va-loc cho item con sot
+        for cls in clearClasses {
+            let scope = groupsFor(cls)
             let query: [String: Any] = [
                 kSecClass as String:              cls,
                 kSecReturnAttributes as String:   true,
@@ -261,7 +308,7 @@ enum KeychainManager {
             guard SecItemCopyMatching(query as CFDictionary, &ref) == errSecSuccess,
                   let items = ref as? [[String: Any]] else { continue }
 
-            for item in items where belongs(item, to: groups) {
+            for item in items where belongs(item, to: scope) {
                 var delQuery: [String: Any] = [
                     kSecClass as String:              cls,
                     kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
@@ -272,6 +319,6 @@ enum KeychainManager {
                 if SecItemDelete(delQuery as CFDictionary) == errSecSuccess { deleted += 1 }
             }
         }
-        plog("keychain clear \(bundleID): da xoa \(deleted) items")
+        plog("keychain clear \(bundleID): da xoa \(deleted) muc")
     }
 }
