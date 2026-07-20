@@ -116,6 +116,79 @@ final class DataManager {
         }
     }
 
+    /// Ten cac file/thu muc trong container KHONG dua vao backup.
+    ///  - metadata plist: cua rieng iOS, khong phai du lieu app
+    ///  - tmp, Library/Caches: iOS coi la vut duoc, khong chua session,
+    ///    ma lai co the rat to
+    private let skipRelPaths: Set<String> = [
+        ".com.apple.mobile_container_manager.metadata.plist",
+        "tmp",
+        "Library/Caches",
+    ]
+
+    /// Copy TOAN BO cay thu muc cua mot container (tru cac muc trong
+    /// `skipRelPaths` va symlink). Day la diem khac cot loi so voi ban cu:
+    /// truoc chi copy vai thu muc con nen mat session nam o cho khac.
+    private func copyContainerTree(from src: URL, to dst: URL) {
+        try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
+        copyTreeInner(src: src, dst: dst, rel: "")
+    }
+
+    private func copyTreeInner(src: URL, dst: URL, rel: String) {
+        guard let items = try? fm.contentsOfDirectory(
+            at: src, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: []) else { return }
+        for item in items {
+            autoreleasepool {
+                let name    = item.lastPathComponent
+                let relPath = rel.isEmpty ? name : "\(rel)/\(name)"
+                if skipRelPaths.contains(relPath) { return }
+                let vals = try? item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                if vals?.isSymbolicLink == true { return }   // symlink -> loi 14 luc restore
+                let target = dst.appendingPathComponent(name)
+                if vals?.isDirectory == true {
+                    try? fm.createDirectory(at: target, withIntermediateDirectories: true)
+                    copyTreeInner(src: item, dst: target, rel: relPath)
+                } else {
+                    if fm.fileExists(atPath: target.path) { try? fm.removeItem(at: target) }
+                    try? fm.copyItem(at: item, to: target)
+                }
+            }
+        }
+    }
+
+    /// Do lai container tu ban backup: xoa sach noi dung hien tai (giu metadata)
+    /// roi chep toan bo tu `src` vao.
+    private func restoreContainerTree(from src: URL, to dst: URL) {
+        guard fm.fileExists(atPath: src.path) else { return }
+        wipeContainerContents(dst.path)
+        guard let items = try? fm.contentsOfDirectory(
+            at: src, includingPropertiesForKeys: [.isDirectoryKey], options: []) else { return }
+        for item in items {
+            autoreleasepool {
+                let target = dst.appendingPathComponent(item.lastPathComponent)
+                let isDir  = (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                if isDir { copyDirFull(from: item, to: target) }
+                else {
+                    if fm.fileExists(atPath: target.path) { try? fm.removeItem(at: target) }
+                    try? fm.copyItem(at: item, to: target)
+                }
+            }
+        }
+    }
+
+    /// Tao lai khung thu muc chuan ma iOS dung cho mot app vua cai.
+    ///
+    /// Sau khi wipe sach container, app se CRASH luc mo neu thieu cac thu muc
+    /// nay (Documents, Library, tmp...). Tao lai de app khoi dong duoc nhu moi.
+    private func recreateContainerSkeleton(at path: String, isDataContainer: Bool) {
+        var dirs = ["Library", "Library/Caches", "Library/Preferences"]
+        if isDataContainer { dirs += ["Documents", "SystemData", "tmp"] }
+        for d in dirs {
+            try? fm.createDirectory(atPath: "\(path)/\(d)", withIntermediateDirectories: true)
+        }
+    }
+
     private func dirSize(_ url: URL) -> Int64 {
         var total: Int64 = 0
         guard let e = fm.enumerator(at: url,
@@ -250,6 +323,10 @@ final class DataManager {
                     }
                 }
             }
+            // Tu dong dong cac app da xu ly, de lan mo sau chung khoi dong lai
+            // sach (voi du lieu vua reset/restore) chu khong dung state cu.
+            killAppsAndWait(processNames: items.map { $0.processName })
+            DispatchQueue.main.async { progress("Da dong \(items.count) app") }
             task.end()
             DispatchQueue.main.async { completion(succeeded) }
         }
@@ -258,14 +335,17 @@ final class DataManager {
     // MARK: - Backup mot app
 
     private func backupOne(item: AppItem) throws {
-        guard let container = resolveContainerPath(bundleID: item.bundleID)
+        let containers = resolveAllContainers(bundleID: item.bundleID)
+        guard let mainURL = containers.data
         else { throw AppError.containerNotFound(item.bundleID) }
 
-        plog("backup: \(item.bundleID) → \(container.lastPathComponent)")
+        plog("backup: \(item.bundleID) (\(containers.appGroups.count) group, \(containers.plugins.count) plugin)")
 
-        let size = dirSize(container)
+        // Uoc luong dung luong tren TAT CA container de kiem tra bo nho
+        var size = dirSize(mainURL)
+        for (_, url) in containers.appGroups { size += dirSize(url) }
+        for (_, url) in containers.plugins   { size += dirSize(url) }
         let free = freeSpace()
-        // Can gap doi: mot ban copy tam + mot file zip.
         // free == 0 nghia la khong doc duoc dung luong trong (khong phai la
         // het bo nho) — cu chay tiep, de buoc zip bao loi that neu thieu cho.
         if size > 0 && free > 0 && free < size * 2 {
@@ -283,24 +363,22 @@ final class DataManager {
         let tempRoot = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? fm.removeItem(at: tempRoot) }
         try fm.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        let stage = tempRoot.appendingPathComponent("container")
-        try fm.createDirectory(at: stage, withIntermediateDirectories: true)
 
-        for sub in Settings.shared.backupSubdirs {
-            autoreleasepool {
-                let src = container.appendingPathComponent(sub)
-                guard fm.fileExists(atPath: src.path) else { return }
-                // Caches co the phinh rat to ma lai khong dang luu
-                if sub == "Library/Caches" && dirSize(src) > Settings.shared.maxCachesBytes {
-                    plog("  bo qua Caches: qua lon"); return
-                }
-                let dst = stage.appendingPathComponent(sub)
-                try? fm.createDirectory(at: dst.deletingLastPathComponent(),
-                                        withIntermediateDirectories: true)
-                let isDir = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                if isDir { copyDirFull(from: src, to: dst) }
-                else { try? fm.copyItem(at: src, to: dst) }
-            }
+        // data/  — TOAN BO container chinh
+        copyContainerTree(from: mainURL, to: tempRoot.appendingPathComponent("data"))
+
+        // groups/<gid>/ — tung app group (session cua nhieu app nam o day)
+        var groupIDs = [String]()
+        for (gid, url) in containers.appGroups {
+            copyContainerTree(from: url, to: tempRoot.appendingPathComponent("groups/\(gid)"))
+            groupIDs.append(gid)
+        }
+
+        // plugins/<pid>/ — extension, widget, share sheet...
+        var pluginIDs = [String]()
+        for (pid, url) in containers.plugins {
+            copyContainerTree(from: url, to: tempRoot.appendingPathComponent("plugins/\(pid)"))
+            pluginIDs.append(pid)
         }
 
         let manifest: [String: Any] = [
@@ -308,7 +386,9 @@ final class DataManager {
             "displayName": item.displayName,
             "processName": item.processName,
             "backupDate":  ISO8601DateFormatter.shared.string(from: Date()),
-            "version":     "1",
+            "version":     "2",
+            "appGroups":   groupIDs,
+            "plugins":     pluginIDs,
         ]
         try JSONSerialization.data(withJSONObject: manifest, options: .prettyPrinted)
             .write(to: tempRoot.appendingPathComponent("manifest.json"))
@@ -323,7 +403,7 @@ final class DataManager {
         try fm.zipItem(at: tempRoot, to: zipURL,
                        shouldKeepParent: false, compressionMethod: .deflate)
         pruneOldBackups(for: item.bundleID)
-        plog("backup xong: \(zipURL.lastPathComponent)")
+        plog("backup xong: \(zipURL.lastPathComponent) (\(keychainItems.count) keychain)")
     }
 
     // MARK: - Xoa du lieu mot app
@@ -393,6 +473,15 @@ final class DataManager {
         wipeContainerContents(dataPath)
         for (_, url) in containers.appGroups { wipeContainerContents(url.path) }
 
+        // ⑨ Tao lai khung thu muc chuan.
+        // Wipe sach xong ma khong lam buoc nay thi app se CRASH luc mo (thieu
+        // Documents/Library/tmp...). Day la buoc dua app ve nhu vua cai.
+        plog("--- tao lai khung thu muc ---")
+        recreateContainerSkeleton(at: dataPath, isDataContainer: true)
+        for (_, url) in containers.appGroups {
+            recreateContainerSkeleton(at: url.path, isDataContainer: false)
+        }
+
         plog("=== xong: \(item.bundleID), \(deleted) muc ===")
         return deleted
     }
@@ -418,27 +507,54 @@ final class DataManager {
                           let displayName = manifest["displayName"] as? String
                     else { throw AppError.invalidManifest }
 
-                    guard let container = resolveContainerPath(bundleID: bundleID)
+                    let containers = resolveAllContainers(bundleID: bundleID)
+                    guard let mainURL = containers.data
                     else { throw AppError.containerNotFound(bundleID) }
 
                     let proc = (manifest["processName"] as? String)
                         ?? String(bundleID.components(separatedBy: ".").last?.prefix(15) ?? "")
                     killAppAndWait(processName: proc)
 
-                    plog("restore: \(displayName) → \(container.lastPathComponent)")
-                    for sub in Settings.shared.backupSubdirs {
-                        autoreleasepool {
-                            let src = tmp.appendingPathComponent("container/\(sub)")
-                            guard self.fm.fileExists(atPath: src.path) else { return }
-                            let dst = container.appendingPathComponent(sub)
-                            if self.fm.fileExists(atPath: dst.path) {
-                                self.wipeContentsRecursive(of: dst)
-                                try? self.fm.removeItem(at: dst)
+                    plog("restore: \(displayName) → \(mainURL.lastPathComponent)")
+
+                    if self.fm.fileExists(atPath: tmp.appendingPathComponent("data").path) {
+                        // ── Format v2: data/ + groups/<gid>/ + plugins/<pid>/ ──
+                        self.restoreContainerTree(
+                            from: tmp.appendingPathComponent("data"), to: mainURL)
+                        plog("  restored: data container")
+
+                        for gid in (manifest["appGroups"] as? [String]) ?? [] {
+                            let src = tmp.appendingPathComponent("groups/\(gid)")
+                            guard let dst = containers.appGroups.first(where: { $0.0 == gid })?.1 else {
+                                plog("  bo qua group (khong resolve): \(gid)"); continue
                             }
-                            let isDir = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                            if isDir { self.copyDirFull(from: src, to: dst) }
-                            else { try? self.fm.copyItem(at: src, to: dst) }
-                            plog("  restored: \(sub)")
+                            self.restoreContainerTree(from: src, to: dst)
+                            plog("  restored group: \(gid)")
+                        }
+                        for pid in (manifest["plugins"] as? [String]) ?? [] {
+                            let src = tmp.appendingPathComponent("plugins/\(pid)")
+                            guard let dst = containers.plugins.first(where: { $0.0 == pid })?.1 else {
+                                plog("  bo qua plugin (khong resolve): \(pid)"); continue
+                            }
+                            self.restoreContainerTree(from: src, to: dst)
+                            plog("  restored plugin: \(pid)")
+                        }
+                    } else {
+                        // ── Format v1 (backup cu): chi co container/<sub> ──
+                        for sub in Settings.shared.backupSubdirs {
+                            autoreleasepool {
+                                let src = tmp.appendingPathComponent("container/\(sub)")
+                                guard self.fm.fileExists(atPath: src.path) else { return }
+                                let dst = mainURL.appendingPathComponent(sub)
+                                if self.fm.fileExists(atPath: dst.path) {
+                                    self.wipeContentsRecursive(of: dst)
+                                    try? self.fm.removeItem(at: dst)
+                                }
+                                let isDir = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                                if isDir { self.copyDirFull(from: src, to: dst) }
+                                else { try? self.fm.copyItem(at: src, to: dst) }
+                                plog("  restored: \(sub)")
+                            }
                         }
                     }
 
@@ -447,6 +563,15 @@ final class DataManager {
                         KeychainManager.restore(items: kItems)
                     }
 
+                    // Backup khong luu tmp/Library-Caches nen tao lai cho du khung,
+                    // tranh app crash vi thieu thu muc chuan.
+                    self.recreateContainerSkeleton(at: mainURL.path, isDataContainer: true)
+                    for (_, url) in containers.appGroups {
+                        self.recreateContainerSkeleton(at: url.path, isDataContainer: false)
+                    }
+
+                    // Dong app de lan mo sau nap lai du lieu vua restore
+                    killAppAndWait(processName: proc)
                     task.end()
                     completion(.success("Restore xong: \(displayName) ✓"))
                 } catch {

@@ -2,6 +2,13 @@
 
 Mỗi bản build có "build tag" dạng `v<version>-<ngày>-<giờ>` hiện ngay ở đầu màn hình chính và trong Cài đặt → so với dòng dưới đây là biết máy đang chạy bản nào.
 
+## v1.2
+
+- **Backup giờ là FULL.** Trước chỉ lưu vài thư mục con của container chính nên mất session (đã test hụt trên LINE). Nay lưu **toàn bộ** container chính + **tất cả app group** + **plugin container** + keychain. Chỉ bỏ `tmp` và `Library/Caches` (iOS coi là vứt được, không chứa session). Restore khôi phục lại đúng các chỗ đó → session sống sót qua backup→reset→restore.
+- **Sửa Reset làm app crash không mở được.** Nguyên nhân: wipe sạch container khiến thiếu khung thư mục chuẩn (`Documents`, `Library`, `tmp`…). Nay sau khi wipe sẽ tạo lại khung → app mở được như vừa cài. Restore cũng tạo lại khung.
+- **Tự động đóng app đã chọn sau khi Reset/Backup xong**, để lần mở sau app khởi động lại sạch với dữ liệu mới.
+- Định dạng backup nâng lên v2; vẫn restore được các bản backup v1 cũ.
+
 ## v1.1
 
 - **Sửa restore lỗi `error 14`.** Nguyên nhân: file backup chứa symlink (ví dụ trong `Library/WebKit`) trỏ ra ngoài, ZIPFoundation chặn khi giải nén (`uncontainedSymlink`). Nay backup bỏ qua symlink, và restore giải nén thủ công bỏ qua symlink — nên restore được cả bản backup cũ đã lỡ chứa symlink.
