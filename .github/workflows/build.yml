@@ -53,6 +53,14 @@ jobs:
       - name: Install ldid
         run: brew list ldid >/dev/null 2>&1 || brew install ldid
 
+      # Ghi build tag vao Info.plist de trong app nhin la biet dang chay ban nao.
+      - name: Inject build tag
+        run: |
+          TAG="v$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${APP_NAME}/Info.plist")-$(date +'%Y%m%d-%H%M')"
+          /usr/libexec/PlistBuddy -c "Set :ADMBuildTag $TAG" "${APP_NAME}/Info.plist"
+          echo "ADMBuildTag = $TAG"
+          echo "BUILD_TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Build
         run: |
           set -o pipefail
@@ -120,19 +128,16 @@ jobs:
           path: ${{ env.APP_NAME }}.tipa
           retention-days: 30
 
-      - name: Tag
-        if: github.event_name != 'pull_request'
-        id: tag
-        run: echo "TAG=v1.0-$(date +'%Y%m%d-%H%M')" >> "$GITHUB_OUTPUT"
-
       - name: Release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.TAG }}
-          name: "AppDataManager ${{ steps.tag.outputs.TAG }}"
+          tag_name: ${{ env.BUILD_TAG }}
+          name: "AppDataManager ${{ env.BUILD_TAG }}"
           body: |
             ## App Data Manager — TrollStore TIPA
+
+            **Build:** `${{ env.BUILD_TAG }}`
 
             Cong cu quan ly du lieu app tren thiet bi cua chinh ban:
             backup, restore, xoa du lieu, xem duong dan container.
@@ -140,12 +145,7 @@ jobs:
             **Cai dat:** TrollStore -> Install IPA -> chon `AppDataManager.tipa`
             **Yeu cau:** iOS 15.0+ · TrollStore · arm64
 
-            ### Tinh nang
-            - Backup du lieu app ra file .zip (kem keychain cua rieng app do)
-            - Restore lai tu ban backup
-            - Reset du lieu app ve trang thai vua cai
-            - Xem cau truc container / app group / plugin
-            - Log realtime ngay trong app
+            Xem thay doi tung ban o CHANGELOG.md.
           files: ${{ env.APP_NAME }}.tipa
           make_latest: true
           draft: false

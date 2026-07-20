@@ -1,9 +1,18 @@
 import Foundation
 
+/// Liet ke app de backup/reset.
+///
+/// Chi lay app "binh thuong": co bundle o /var/containers/Bundle/Application
+/// (App Store + TrollStore) va co data container. App cai qua Sileo/dpkg khong
+/// co bundle o do nen bi loai — dung yeu cau chi hien app App Store/he thong.
 final class AppEnumerator {
     static func installedApps() -> [AppItem] {
         let fm    = FileManager.default
         let ownID = Bundle.main.bundleIdentifier ?? ""
+
+        // ── Buoc 1: quet bundle containers, dung ban do bundleID -> (ten, process).
+        // Ban do nay dong thoi la "danh sach trang": chi app co bundle o day moi
+        // duoc phep xuat hien — nho vay app Sileo/dpkg bi loai tu goc.
         var nameMap = [String: String]()
         var procMap = [String: String]()
 
@@ -29,21 +38,24 @@ final class AppEnumerator {
             }}
         }
 
+        // ── Buoc 2: quet data containers, chi giu app co trong nameMap
         guard let dataDirs = try? fm.contentsOfDirectory(
             at: PathConfig.dataContainersBase,
             includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return [] }
 
-        let skip = ["com.apple.", "com.openssh.", "com.saurik."]
         var results = [AppItem]()
+        var seen    = Set<String>()
         for dir in dataDirs { autoreleasepool {
             let meta = dir.appendingPathComponent(
                 ".com.apple.mobile_container_manager.metadata.plist")
             guard let dict = readPlist(meta),
                   let bid  = dict["MCMMetadataIdentifier"] as? String,
-                  !bid.isEmpty, bid != ownID,
-                  !skip.contains(where: { bid.hasPrefix($0) }) else { return }
-            let name = nameMap[bid] ?? (bid.components(separatedBy: ".").last ?? bid)
+                  // Loc chinh: phai co bundle App Store/TrollStore tuong ung
+                  let name = nameMap[bid],
+                  !seen.contains(bid)
+            else { return }
+            seen.insert(bid)
             let proc = procMap[bid] ?? String(name.prefix(15))
             results.append(AppItem(displayName: name, bundleID: bid, processName: proc))
         }}

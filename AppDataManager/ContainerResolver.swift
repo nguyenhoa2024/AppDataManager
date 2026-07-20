@@ -5,7 +5,7 @@ import Darwin
 // All container base paths
 enum ContainerBase {
     static let data     = "/private/var/mobile/Containers/Data/Application"
-    static let bundle   = "/private/var/mobile/Containers/Bundle/Application"
+    static let bundle   = "/private/var/containers/Bundle/Application"
     static let appGroup = "/private/var/mobile/Containers/Shared/AppGroup"
     static let plugin   = "/private/var/mobile/Containers/Data/PluginKitPlugin"
     static let library  = "/private/var/mobile/Library"

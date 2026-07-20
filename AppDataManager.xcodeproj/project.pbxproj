@@ -22,6 +22,7 @@
 		A100001600000001 /* SelectionStore.swift */          = {isa = PBXBuildFile; fileRef = B100001600000001; };
 		A100001700000001 /* Logger.swift */                  = {isa = PBXBuildFile; fileRef = B100001700000001; };
 		A100001800000001 /* SystemCleaner.swift */           = {isa = PBXBuildFile; fileRef = B100002200000001; };
+		A100002300000001 /* AppInfo.swift */                 = {isa = PBXBuildFile; fileRef = B100002300000001; };
 		A100002001000001 /* Archive.swift */                       = {isa = PBXBuildFile; fileRef = B100002001000001; };
 		A100002002000001 /* Archive+BackingConfiguration.swift */  = {isa = PBXBuildFile; fileRef = B100002002000001; };
 		A100002003000001 /* Archive+Deprecated.swift */            = {isa = PBXBuildFile; fileRef = B100002003000001; };
@@ -64,6 +65,7 @@
 		B100001800000001 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;   path = Info.plist;                    sourceTree = "<group>"; };
 		B100001900000001 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;   path = entitlements.plist;            sourceTree = "<group>"; };
 		B100002200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCleaner.swift;           sourceTree = "<group>"; };
+		B100002300000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift;                 sourceTree = "<group>"; };
 		B100002001000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Archive.swift;                        path = ZIPFoundation/Archive.swift;                        sourceTree = "<group>"; };
 		B100002002000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+BackingConfiguration.swift"; path = "ZIPFoundation/Archive+BackingConfiguration.swift"; sourceTree = "<group>"; };
 		B100002003000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Deprecated.swift";           path = "ZIPFoundation/Archive+Deprecated.swift";           sourceTree = "<group>"; };
@@ -112,7 +114,7 @@
 				B100001000000001, B100001100000001, B100001200000001,
 				B100001400000001, B100001500000001,
 				B100001600000001, B100001700000001,
-				B100002200000001,
+				B100002200000001, B100002300000001,
 				B100001800000001, B100001900000001,
 			);
 			path = AppDataManager;
@@ -197,7 +199,7 @@
 				A100001000000001, A100001100000001, A100001200000001,
 				A100001400000001, A100001500000001,
 				A100001600000001, A100001700000001,
-				A100001800000001,
+				A100001800000001, A100002300000001,
 				A100002001000001, A100002002000001, A100002003000001,
 				A100002004000001, A100002005000001, A100002006000001,
 				A100002007000001, A100002008000001, A100002009000001,
@@ -236,11 +238,11 @@
 				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
 				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1; EXCLUDED_ARCHS = arm64e;
+				CURRENT_PROJECT_VERSION = 2; EXCLUDED_ARCHS = arm64e;
 				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				OTHER_LDFLAGS = "-lcompression";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -259,11 +261,11 @@
 				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
 				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1; EXCLUDED_ARCHS = arm64e;
+				CURRENT_PROJECT_VERSION = 2; EXCLUDED_ARCHS = arm64e;
 				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				OTHER_LDFLAGS = "-lcompression";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
 				PRODUCT_NAME = "$(TARGET_NAME)";

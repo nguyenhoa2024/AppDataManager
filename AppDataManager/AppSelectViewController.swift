@@ -1,9 +1,16 @@
 import UIKit
 
-/// Chon app de backup / reset. Lua chon duoc luu lai qua SelectionStore.
+/// Chon app cho mot muc dich: Reset hoac Backup. Lua chon luu qua SelectionStore.
 final class AppSelectViewController: UIViewController,
     UITableViewDataSource, UITableViewDelegate {
 
+    enum Mode {
+        case reset, backup
+        var title: String { self == .reset ? "Chon app Reset" : "Chon app Backup" }
+        var tint:  UIColor { self == .reset ? C.red : C.blue }
+    }
+
+    private let mode:    Mode
     private let appList: [AppItem]
     var onDone: (() -> Void)?
 
@@ -11,7 +18,8 @@ final class AppSelectViewController: UIViewController,
     private let tableView   = UITableView(frame: .zero, style: .plain)
     private let countLabel  = UILabel()
 
-    init(appList: [AppItem]) {
+    init(mode: Mode, appList: [AppItem]) {
+        self.mode    = mode
         self.appList = appList
         super.init(nibName: nil, bundle: nil)
     }
@@ -19,12 +27,15 @@ final class AppSelectViewController: UIViewController,
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Chon app"
+        title = mode.title
         view.backgroundColor = C.bg
 
-        // Bo id cua app da go khoi lua chon cu
+        // Nap lua chon da luu, bo id cua app da go
         let installed = Set(appList.map { $0.bundleID })
-        selectedIDs = SelectionStore.shared.load().intersection(installed)
+        let saved = mode == .reset
+            ? SelectionStore.shared.loadReset()
+            : SelectionStore.shared.loadBackup()
+        selectedIDs = saved.intersection(installed)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "Xong", style: .done, target: self, action: #selector(doneTapped))
@@ -66,7 +77,8 @@ final class AppSelectViewController: UIViewController,
     }
 
     @objc private func doneTapped() {
-        SelectionStore.shared.save(selectedIDs)
+        if mode == .reset { SelectionStore.shared.saveReset(selectedIDs) }
+        else              { SelectionStore.shared.saveBackup(selectedIDs) }
         onDone?()
         navigationController?.popViewController(animated: true)
     }
@@ -93,7 +105,7 @@ final class AppSelectViewController: UIViewController,
         cell.backgroundColor            = C.cellBg
         cell.textLabel?.textColor       = .white
         cell.detailTextLabel?.textColor = C.grayText
-        cell.tintColor                  = C.mint
+        cell.tintColor                  = mode.tint
         if cell.selectedBackgroundView == nil {
             let v = UIView(); v.backgroundColor = C.selCell
             cell.selectedBackgroundView = v

@@ -9,9 +9,10 @@ final class MainViewController: UIViewController {
 
     // MARK: - UI
     private let headerLabel     = UILabel()
-    private let selectBtn       = UIButton(type: .system)
-    private let selectCountLbl  = UILabel()
-    private let backupBtn       = UIButton(type: .system)
+    private let resetRowBtn     = UIButton(type: .system)   // Chon app Reset
+    private let resetCountLbl   = UILabel()
+    private let backupRowBtn    = UIButton(type: .system)   // Chon app Backup
+    private let backupCountLbl  = UILabel()
     private let backupResetBtn  = UIButton(type: .system)
     private let resetBtn        = UIButton(type: .system)
     private let manageBtn       = UIButton(type: .system)
@@ -33,7 +34,7 @@ final class MainViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        updateSelectionCount()
+        updateSelectionCounts()
     }
 
     // MARK: - Data
@@ -47,7 +48,7 @@ final class MainViewController: UIViewController {
                 guard let self = self else { return }
                 self.isLoading = false
                 self.appList = apps
-                self.updateSelectionCount()
+                self.updateSelectionCounts()
                 self.appendLog("Quet xong: \(apps.count) app")
             }
         }
@@ -60,9 +61,15 @@ final class MainViewController: UIViewController {
         }
     }
 
-    /// App dang duoc chon, da loc bo nhung app khong con cai tren may.
-    private func selectedItems() -> [AppItem] {
-        let ids = SelectionStore.shared.load()
+    /// App trong tap Reset, da loc bo app khong con cai.
+    private func resetItems() -> [AppItem] {
+        let ids = SelectionStore.shared.loadReset()
+        return appList.filter { ids.contains($0.bundleID) }
+    }
+
+    /// App trong tap Backup, da loc bo app khong con cai.
+    private func backupItems() -> [AppItem] {
+        let ids = SelectionStore.shared.loadBackup()
         return appList.filter { ids.contains($0.bundleID) }
     }
 
@@ -75,28 +82,26 @@ final class MainViewController: UIViewController {
             style: .plain, target: self, action: #selector(settingsTapped))
         navigationItem.rightBarButtonItem?.tintColor = C.mint
 
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        headerLabel.text = "v\(version)  ·  iOS \(UIDevice.current.systemVersion)  ·  \(getDeviceModel())"
-        headerLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        headerLabel.text = AppInfo.headerLine
+        headerLabel.font = .systemFont(ofSize: 11, weight: .medium)
         headerLabel.textColor = C.grayText
         headerLabel.textAlignment = .center
+        headerLabel.numberOfLines = 2
 
-        selectBtn.setTitle("  Chon app", for: .normal)
-        selectBtn.setTitleColor(C.mint, for: .normal)
-        selectBtn.titleLabel?.font = .systemFont(ofSize: 15)
-        selectBtn.contentHorizontalAlignment = .left
-        selectBtn.backgroundColor = C.cellBg
-        selectBtn.layer.cornerRadius = 8
-        selectBtn.addTarget(self, action: #selector(selectTapped), for: .touchUpInside)
+        // Hai dong chon app rieng biet
+        styleRow(resetRowBtn,  title: "Chon app Reset",  color: C.red)
+        styleRow(backupRowBtn, title: "Chon app Backup", color: C.blue)
+        resetRowBtn .addTarget(self, action: #selector(pickResetTapped),  for: .touchUpInside)
+        backupRowBtn.addTarget(self, action: #selector(pickBackupTapped), for: .touchUpInside)
+        for lbl in [resetCountLbl, backupCountLbl] {
+            lbl.font = .systemFont(ofSize: 12)
+            lbl.textColor = C.grayText
+            lbl.text = "0 app"
+        }
 
-        selectCountLbl.font = .systemFont(ofSize: 13)
-        selectCountLbl.textColor = C.grayText
-        selectCountLbl.text = "0 app"
-
-        styleAction(backupBtn,      title: "Backup",           color: C.blue)
+        // Hai nut hanh dong (khong con nut Backup rieng)
         styleAction(backupResetBtn, title: "Backup\n+\nReset", color: C.orange)
         styleAction(resetBtn,       title: "Reset",            color: C.red)
-        backupBtn     .addTarget(self, action: #selector(backupTapped),      for: .touchUpInside)
         backupResetBtn.addTarget(self, action: #selector(backupResetTapped), for: .touchUpInside)
         resetBtn      .addTarget(self, action: #selector(resetTapped),       for: .touchUpInside)
         backupResetBtn.titleLabel?.numberOfLines = 3
@@ -127,8 +132,9 @@ final class MainViewController: UIViewController {
             progressOverlay.addSubview($0)
         }
 
-        let views: [UIView] = [headerLabel, selectBtn, selectCountLbl,
-                               backupBtn, backupResetBtn, resetBtn,
+        let views: [UIView] = [headerLabel, resetRowBtn, resetCountLbl,
+                               backupRowBtn, backupCountLbl,
+                               backupResetBtn, resetBtn,
                                manageBtn, restoreQuickBtn,
                                logTextView, progressOverlay]
         views.forEach {
@@ -142,29 +148,31 @@ final class MainViewController: UIViewController {
             headerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             headerLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            selectBtn.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 12),
-            selectBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            selectBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            selectBtn.heightAnchor.constraint(equalToConstant: 48),
-            selectCountLbl.centerYAnchor.constraint(equalTo: selectBtn.centerYAnchor),
-            selectCountLbl.trailingAnchor.constraint(equalTo: selectBtn.trailingAnchor, constant: -14),
+            resetRowBtn.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 12),
+            resetRowBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            resetRowBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            resetRowBtn.heightAnchor.constraint(equalToConstant: 46),
+            resetCountLbl.centerYAnchor.constraint(equalTo: resetRowBtn.centerYAnchor),
+            resetCountLbl.trailingAnchor.constraint(equalTo: resetRowBtn.trailingAnchor, constant: -14),
 
-            backupBtn.topAnchor.constraint(equalTo: selectBtn.bottomAnchor, constant: 12),
-            backupBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            backupBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.28),
-            backupBtn.heightAnchor.constraint(equalToConstant: 74),
+            backupRowBtn.topAnchor.constraint(equalTo: resetRowBtn.bottomAnchor, constant: 8),
+            backupRowBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            backupRowBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            backupRowBtn.heightAnchor.constraint(equalToConstant: 46),
+            backupCountLbl.centerYAnchor.constraint(equalTo: backupRowBtn.centerYAnchor),
+            backupCountLbl.trailingAnchor.constraint(equalTo: backupRowBtn.trailingAnchor, constant: -14),
 
-            backupResetBtn.topAnchor.constraint(equalTo: backupBtn.topAnchor),
-            backupResetBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            backupResetBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.28),
+            backupResetBtn.topAnchor.constraint(equalTo: backupRowBtn.bottomAnchor, constant: 12),
+            backupResetBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            backupResetBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.44),
             backupResetBtn.heightAnchor.constraint(equalToConstant: 74),
 
-            resetBtn.topAnchor.constraint(equalTo: backupBtn.topAnchor),
+            resetBtn.topAnchor.constraint(equalTo: backupResetBtn.topAnchor),
             resetBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            resetBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.28),
+            resetBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.44),
             resetBtn.heightAnchor.constraint(equalToConstant: 74),
 
-            manageBtn.topAnchor.constraint(equalTo: backupBtn.bottomAnchor, constant: 12),
+            manageBtn.topAnchor.constraint(equalTo: backupResetBtn.bottomAnchor, constant: 12),
             manageBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             manageBtn.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.44),
             manageBtn.heightAnchor.constraint(equalToConstant: 40),
@@ -192,10 +200,19 @@ final class MainViewController: UIViewController {
         ])
     }
 
+    private func styleRow(_ b: UIButton, title: String, color: UIColor) {
+        b.setTitle("  \(title)", for: .normal)
+        b.setTitleColor(color, for: .normal)
+        b.titleLabel?.font = .systemFont(ofSize: 15, weight: .medium)
+        b.contentHorizontalAlignment = .left
+        b.backgroundColor = C.cellBg
+        b.layer.cornerRadius = 8
+    }
+
     private func styleAction(_ b: UIButton, title: String, color: UIColor) {
         b.setTitle(title, for: .normal)
         b.setTitleColor(color, for: .normal)
-        b.titleLabel?.font = .boldSystemFont(ofSize: 14)
+        b.titleLabel?.font = .boldSystemFont(ofSize: 15)
         b.backgroundColor = UIColor.black.withAlphaComponent(0.3)
         b.layer.cornerRadius = 10
         b.layer.borderWidth = 1.5
@@ -216,7 +233,6 @@ final class MainViewController: UIViewController {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let current = self.logTextView.text ?? ""
-            // Giu 100 dong cuoi — text view khong gioi han se phinh dan
             let limited = current.components(separatedBy: "\n").suffix(99).joined(separator: "\n")
             self.logTextView.text = limited.isEmpty ? text : limited + "\n" + text
             if let count = self.logTextView.text?.count, count > 0 {
@@ -225,8 +241,9 @@ final class MainViewController: UIViewController {
         }
     }
 
-    private func updateSelectionCount() {
-        selectCountLbl.text = "\(selectedItems().count) app"
+    private func updateSelectionCounts() {
+        resetCountLbl.text  = "\(resetItems().count) app"
+        backupCountLbl.text = "\(backupItems().count) app"
     }
 
     private func showProgress(_ msg: String) {
@@ -253,76 +270,75 @@ final class MainViewController: UIViewController {
     private func setButtonsEnabled(_ on: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            [self.backupBtn, self.backupResetBtn, self.resetBtn,
-             self.selectBtn, self.manageBtn, self.restoreQuickBtn].forEach {
+            [self.backupResetBtn, self.resetBtn, self.resetRowBtn, self.backupRowBtn,
+             self.manageBtn, self.restoreQuickBtn].forEach {
                 $0.isEnabled = on
                 $0.alpha = on ? 1.0 : 0.5
             }
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Chon app
 
-    @objc private func selectTapped() {
-        let vc = AppSelectViewController(appList: appList)
-        vc.onDone = { [weak self] in self?.updateSelectionCount() }
+    @objc private func pickResetTapped() {
+        let vc = AppSelectViewController(mode: .reset, appList: appList)
+        vc.onDone = { [weak self] in self?.updateSelectionCounts() }
         navigationController?.pushViewController(vc, animated: true)
     }
 
-    @objc private func backupTapped() {
-        guard let items = requireSelection() else { return }
-        runOperation(title: "Backup", items: items) { progress, done in
-            DataManager.shared.backupApps(items: items, progress: progress) { _ in done() }
-        }
+    @objc private func pickBackupTapped() {
+        let vc = AppSelectViewController(mode: .backup, appList: appList)
+        vc.onDone = { [weak self] in self?.updateSelectionCounts() }
+        navigationController?.pushViewController(vc, animated: true)
     }
 
-    @objc private func backupResetTapped() {
-        guard let items = requireSelection() else { return }
-        confirmDestructive(
-            title: "Backup roi reset?",
-            message: "Luu backup roi xoa sach du lieu cua:\n\(names(items))"
-                   + "\n\nApp nao backup that bai se KHONG bi reset.",
-            action: "Backup + Reset"
-        ) { [weak self] in
-            self?.runOperation(title: "Backup + Reset", items: items) { progress, done in
-                DataManager.shared.backupThenResetApps(
-                    items: items, progress: progress) { _ in done() }
-            }
-        }
-    }
+    // MARK: - Hanh dong
 
     @objc private func resetTapped() {
-        guard let items = requireSelection() else { return }
+        let items = resetItems()
+        guard !items.isEmpty else {
+            appendLog(appList.isEmpty ? "Dang quet app, doi mot chut..." : "Chua chon app Reset")
+            return
+        }
         confirmDestructive(
             title: "Reset du lieu?",
             message: "Xoa sach du lieu cua:\n\(names(items))\n\nKhong co backup thi khong hoan tac duoc.",
             action: "Reset"
         ) { [weak self] in
-            self?.runOperation(title: "Reset", items: items) { progress, done in
+            self?.runOperation(title: "Reset") { progress, done in
                 DataManager.shared.resetApps(items: items, progress: progress) { _ in done() }
             }
         }
     }
 
-    /// Kiem tra da chon app chua, chua thi bao trong log va tra ve nil.
-    private func requireSelection() -> [AppItem]? {
-        let items = selectedItems()
-        guard !items.isEmpty else {
+    @objc private func backupResetTapped() {
+        let backups = backupItems()
+        let resets  = resetItems()
+        guard !backups.isEmpty || !resets.isEmpty else {
             appendLog(appList.isEmpty ? "Dang quet app, doi mot chut..." : "Chua chon app nao")
-            return nil
+            return
         }
-        return items
+        let message = "Se BACKUP:\n\(names(backups, empty: "(khong co)"))\n\n"
+                    + "Roi RESET:\n\(names(resets, empty: "(khong co)"))\n\n"
+                    + "App backup that bai se KHONG bi reset."
+        confirmDestructive(title: "Backup roi Reset?", message: message, action: "Backup + Reset") {
+            [weak self] in
+            self?.runOperation(title: "Backup + Reset") { progress, done in
+                DataManager.shared.backupThenReset(
+                    backupItems: backups, resetItems: resets, progress: progress) { _ in done() }
+            }
+        }
     }
 
-    private func names(_ items: [AppItem]) -> String {
-        items.map { $0.displayName }.joined(separator: ", ")
+    private func names(_ items: [AppItem], empty: String = "") -> String {
+        items.isEmpty ? empty : items.map { $0.displayName }.joined(separator: ", ")
     }
 
-    private func runOperation(title: String, items: [AppItem],
+    private func runOperation(title: String,
                               _ body: (@escaping (String) -> Void, @escaping () -> Void) -> Void) {
         setButtonsEnabled(false)
         showProgress("\(title)...")
-        appendLog("--- \(title): \(names(items)) ---")
+        appendLog("--- \(title) ---")
         body({ [weak self] msg in
             self?.updateProgress(msg)
             self?.appendLog(msg)
@@ -342,6 +358,8 @@ final class MainViewController: UIViewController {
         present(a, animated: true)
     }
 
+    // MARK: - Backup: xem / restore
+
     @objc private func manageTapped() {
         let vc = BackupListViewController(entries: backupEntries)
         vc.onChanged = { [weak self] in self?.reloadBackups() }
@@ -359,7 +377,6 @@ final class MainViewController: UIViewController {
             })
         }
         alert.addAction(UIAlertAction(title: "Huy", style: .cancel))
-        // iPad bat buoc co anchor cho action sheet, khong se crash
         alert.popoverPresentationController?.sourceView = restoreQuickBtn
         alert.popoverPresentationController?.sourceRect = restoreQuickBtn.bounds
         present(alert, animated: true)

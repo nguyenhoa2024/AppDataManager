@@ -96,13 +96,17 @@ final class DataManager {
         // neu doc src that bai ma thoat som thi dst se mat han thay vi rong.
         try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
         guard let items = try? fm.contentsOfDirectory(
-            at: src, includingPropertiesForKeys: [.isDirectoryKey], options: [])
+            at: src, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: [])
         else { return }
         for item in items {
             autoreleasepool {
+                let vals = try? item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                // Bo qua symlink: nhieu app dat symlink (vd trong WebKit) tro toi
+                // /var/... ben ngoai. Neu nhet vao zip, luc restore ZIPFoundation
+                // se chan (ArchiveError uncontainedSymlink) va hong ca ban backup.
+                if vals?.isSymbolicLink == true { return }
                 let target = dst.appendingPathComponent(item.lastPathComponent)
-                let isDir  = (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                if isDir {
+                if vals?.isDirectory == true {
                     copyDirFull(from: item, to: target)
                 } else {
                     if fm.fileExists(atPath: target.path) { try? fm.removeItem(at: target) }
@@ -178,31 +182,39 @@ final class DataManager {
         }
     }
 
-    /// Backup roi reset — CHI reset nhung app da backup thanh cong.
+    /// Backup mot tap app, roi reset mot tap app khac.
     ///
-    /// Neu reset ca nhung app backup that bai (het bo nho, khong tim thay
-    /// container...) thi du lieu mat han ma khong co gi khoi phuc. Vi vay
-    /// phai loc theo ket qua cua buoc backup.
-    func backupThenResetApps(items: [AppItem],
-                             progress: @escaping (String) -> Void,
-                             completion: @escaping ([AppItem]) -> Void) {
-        backupApps(items: items, progress: progress) { backedUp in
-            let skipped = items.filter { item in
-                !backedUp.contains { $0.bundleID == item.bundleID }
+    /// `backupItems` va `resetItems` co the la hai tap khac nhau. Nguyen tac
+    /// an toan: mot app nam trong CA hai tap chi bi reset khi backup cua no
+    /// thanh cong — de khong xoa mat du lieu ma le ra da phai luu. App chi
+    /// nam trong tap reset (khong yeu cau backup) thi reset binh thuong.
+    func backupThenReset(backupItems: [AppItem],
+                         resetItems: [AppItem],
+                         progress: @escaping (String) -> Void,
+                         completion: @escaping ([AppItem]) -> Void) {
+        backupApps(items: backupItems, progress: progress) { backedUp in
+            let backupIDs = Set(backupItems.map { $0.bundleID })
+            let okIDs     = Set(backedUp.map { $0.bundleID })
+
+            var toReset = [AppItem]()
+            for item in resetItems {
+                let inBackupSet = backupIDs.contains(item.bundleID)
+                if inBackupSet && !okIDs.contains(item.bundleID) {
+                    let msg = "Bo qua reset \(item.displayName): backup that bai"
+                    plog(msg)
+                    DispatchQueue.main.async { progress(msg) }
+                } else {
+                    toReset.append(item)
+                }
             }
-            for item in skipped {
-                let msg = "Bo qua reset \(item.displayName): backup that bai"
-                plog(msg)
-                DispatchQueue.main.async { progress(msg) }
-            }
-            guard !backedUp.isEmpty else {
+
+            guard !toReset.isEmpty else {
                 DispatchQueue.main.async {
-                    progress("Khong app nao backup duoc, khong reset gi ca")
-                    completion([])
+                    progress("Khong reset app nao"); completion(backedUp)
                 }
                 return
             }
-            self.resetApps(items: backedUp, progress: progress, completion: completion)
+            self.resetApps(items: toReset, progress: progress, completion: completion)
         }
     }
 
@@ -394,7 +406,11 @@ final class DataManager {
                 do {
                     let tmp = self.fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                     defer { try? self.fm.removeItem(at: tmp) }
-                    try self.fm.unzipItem(at: zipURL, to: tmp)
+                    // Giai nen thu cong thay cho fm.unzipItem: bo qua symlink.
+                    // fm.unzipItem chan symlink tro ra ngoai (uncontainedSymlink =
+                    // ArchiveError 14) va hong ca lan restore — ke ca ban backup cu
+                    // lo chua symlink cung restore duoc nho buoc nay.
+                    try self.extractSkippingSymlinks(zipURL: zipURL, to: tmp)
 
                     let data = try Data(contentsOf: tmp.appendingPathComponent("manifest.json"))
                     guard let manifest    = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -434,9 +450,44 @@ final class DataManager {
                     task.end()
                     completion(.success("Restore xong: \(displayName) ✓"))
                 } catch {
-                    plog("restore loi: \(error)")
+                    // Ghi ro domain + code de sau con biet loi gi (vd "error 14")
+                    let ns = error as NSError
+                    plog("restore loi: \(ns.domain) code=\(ns.code) — \(error.localizedDescription)")
                     task.end()
                     completion(.failure(error))
+                }
+            }
+        }
+    }
+
+    /// Giai nen zip vao `dst`, bo qua entry symlink va entry co duong dan
+    /// khong an toan (thoat ra ngoai `dst`). Thay cho fm.unzipItem de tranh
+    /// ArchiveError.uncontainedSymlink (code 14).
+    private func extractSkippingSymlinks(zipURL: URL, to dst: URL) throws {
+        // init(url:accessMode:) la throwing trong ZIPFoundation 0.9.19
+        let archive = try Archive(url: zipURL, accessMode: .read)
+        try fm.createDirectory(at: dst, withIntermediateDirectories: true)
+        let base = dst.standardizedFileURL.path
+
+        for entry in archive {
+            autoreleasepool {
+                if entry.type == .symlink {
+                    plog("  bo qua symlink: \(entry.path)")
+                    return
+                }
+                let target = dst.appendingPathComponent(entry.path).standardizedFileURL
+                // Chan path traversal: target phai nam trong dst
+                guard target.path == base || target.path.hasPrefix(base + "/") else {
+                    plog("  bo qua entry ngoai pham vi: \(entry.path)")
+                    return
+                }
+                if entry.type == .directory {
+                    try? fm.createDirectory(at: target, withIntermediateDirectories: true)
+                } else {
+                    try? fm.createDirectory(
+                        at: target.deletingLastPathComponent(),
+                        withIntermediateDirectories: true)
+                    _ = try? archive.extract(entry, to: target)
                 }
             }
         }

@@ -22,7 +22,8 @@ final class SettingsViewController: UIViewController,
 
     private func refreshInfoRows() {
         infoRows = [
-            ("Phien ban",     Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"),
+            ("Phien ban",     "\(AppInfo.version) (build \(AppInfo.build))"),
+            ("Build tag",     AppInfo.buildTag),
             ("iOS",           UIDevice.current.systemVersion),
             ("Thiet bi",      getDeviceModel()),
             ("Backup path",   PathConfig.backupRoot.path),

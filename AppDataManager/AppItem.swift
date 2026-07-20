@@ -23,8 +23,11 @@ enum PathConfig {
         "/private/var/mobile/Documents/AppDataManager/backups")
     static let dataContainersBase = URL(fileURLWithPath:
         "/private/var/mobile/Containers/Data/Application")
+    // App bundle nam o /var/containers/Bundle/Application (KHONG phai /var/mobile/...).
+    // Chi App Store + TrollStore app moi co bundle o day; app cai qua Sileo/dpkg
+    // nam trong jbroot nen se khong lot vao danh sach.
     static let bundleContainersBase = URL(fileURLWithPath:
-        "/private/var/mobile/Containers/Bundle/Application")
+        "/private/var/containers/Bundle/Application")
     static let appGroupBase = URL(fileURLWithPath:
         "/private/var/mobile/Containers/Shared/AppGroup")
 
