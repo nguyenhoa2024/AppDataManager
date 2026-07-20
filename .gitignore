@@ -1,0 +1,17 @@
+# Build output
+build/
+DerivedData/
+*.tipa
+*.ipa
+Payload/
+build_log.txt
+
+# ZIPFoundation duoc CI tai ve va copy vao day, khong commit
+AppDataManager/ZIPFoundation/
+.spm-packages/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+.DS_Store

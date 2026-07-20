@@ -1,0 +1,295 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A100000100000001 /* Colors.swift */                  = {isa = PBXBuildFile; fileRef = B100000100000001; };
+		A100000200000001 /* Settings.swift */                = {isa = PBXBuildFile; fileRef = B100000200000001; };
+		A100000300000001 /* AppItem.swift */                 = {isa = PBXBuildFile; fileRef = B100000300000001; };
+		A100000400000001 /* AppEnumerator.swift */           = {isa = PBXBuildFile; fileRef = B100000400000001; };
+		A100000500000001 /* ContainerResolver.swift */       = {isa = PBXBuildFile; fileRef = B100000500000001; };
+		A100000600000001 /* KeychainManager.swift */         = {isa = PBXBuildFile; fileRef = B100000600000001; };
+		A100000700000001 /* DataManager.swift */             = {isa = PBXBuildFile; fileRef = B100000700000001; };
+		A100000900000001 /* AppDelegate.swift */             = {isa = PBXBuildFile; fileRef = B100000900000001; };
+		A100001000000001 /* MainViewController.swift */      = {isa = PBXBuildFile; fileRef = B100001000000001; };
+		A100001100000001 /* AppSelectViewController.swift */ = {isa = PBXBuildFile; fileRef = B100001100000001; };
+		A100001200000001 /* BackupListViewController.swift */= {isa = PBXBuildFile; fileRef = B100001200000001; };
+		A100001400000001 /* FilePathViewController.swift */  = {isa = PBXBuildFile; fileRef = B100001400000001; };
+		A100001500000001 /* SettingsViewController.swift */  = {isa = PBXBuildFile; fileRef = B100001500000001; };
+		A100001600000001 /* SelectionStore.swift */          = {isa = PBXBuildFile; fileRef = B100001600000001; };
+		A100001700000001 /* Logger.swift */                  = {isa = PBXBuildFile; fileRef = B100001700000001; };
+		A100001800000001 /* SystemCleaner.swift */           = {isa = PBXBuildFile; fileRef = B100002200000001; };
+		A100002001000001 /* Archive.swift */                       = {isa = PBXBuildFile; fileRef = B100002001000001; };
+		A100002002000001 /* Archive+BackingConfiguration.swift */  = {isa = PBXBuildFile; fileRef = B100002002000001; };
+		A100002003000001 /* Archive+Deprecated.swift */            = {isa = PBXBuildFile; fileRef = B100002003000001; };
+		A100002004000001 /* Archive+Helpers.swift */               = {isa = PBXBuildFile; fileRef = B100002004000001; };
+		A100002005000001 /* Archive+MemoryFile.swift */            = {isa = PBXBuildFile; fileRef = B100002005000001; };
+		A100002006000001 /* Archive+Progress.swift */              = {isa = PBXBuildFile; fileRef = B100002006000001; };
+		A100002007000001 /* Archive+Reading.swift */               = {isa = PBXBuildFile; fileRef = B100002007000001; };
+		A100002008000001 /* Archive+ReadingDeprecated.swift */     = {isa = PBXBuildFile; fileRef = B100002008000001; };
+		A100002009000001 /* Archive+Writing.swift */               = {isa = PBXBuildFile; fileRef = B100002009000001; };
+		A100002010000001 /* Archive+WritingDeprecated.swift */     = {isa = PBXBuildFile; fileRef = B100002010000001; };
+		A100002011000001 /* Archive+ZIP64.swift */                 = {isa = PBXBuildFile; fileRef = B100002011000001; };
+		A100002012000001 /* Data+Compression.swift */              = {isa = PBXBuildFile; fileRef = B100002012000001; };
+		A100002013000001 /* Data+CompressionDeprecated.swift */    = {isa = PBXBuildFile; fileRef = B100002013000001; };
+		A100002014000001 /* Data+Serialization.swift */            = {isa = PBXBuildFile; fileRef = B100002014000001; };
+		A100002015000001 /* Date+ZIP.swift */                      = {isa = PBXBuildFile; fileRef = B100002015000001; };
+		A100002016000001 /* Entry.swift */                         = {isa = PBXBuildFile; fileRef = B100002016000001; };
+		A100002017000001 /* Entry+Serialization.swift */           = {isa = PBXBuildFile; fileRef = B100002017000001; };
+		A100002018000001 /* Entry+ZIP64.swift */                   = {isa = PBXBuildFile; fileRef = B100002018000001; };
+		A100002019000001 /* FileManager+ZIP.swift */               = {isa = PBXBuildFile; fileRef = B100002019000001; };
+		A100002020000001 /* FileManager+ZIPDeprecated.swift */     = {isa = PBXBuildFile; fileRef = B100002020000001; };
+		A100002021000001 /* URL+ZIP.swift */                       = {isa = PBXBuildFile; fileRef = B100002021000001; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B100000100000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift;                  sourceTree = "<group>"; };
+		B100000200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift;                sourceTree = "<group>"; };
+		B100000300000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppItem.swift;                 sourceTree = "<group>"; };
+		B100000400000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnumerator.swift;           sourceTree = "<group>"; };
+		B100000500000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerResolver.swift;       sourceTree = "<group>"; };
+		B100000600000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift;         sourceTree = "<group>"; };
+		B100000700000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManager.swift;             sourceTree = "<group>"; };
+		B100000900000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift;             sourceTree = "<group>"; };
+		B100001000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift;      sourceTree = "<group>"; };
+		B100001100000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectViewController.swift; sourceTree = "<group>"; };
+		B100001200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupListViewController.swift;sourceTree = "<group>"; };
+		B100001400000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathViewController.swift;  sourceTree = "<group>"; };
+		B100001500000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift;  sourceTree = "<group>"; };
+		B100001600000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionStore.swift;          sourceTree = "<group>"; };
+		B100001700000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift;                  sourceTree = "<group>"; };
+		B100001800000001 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;   path = Info.plist;                    sourceTree = "<group>"; };
+		B100001900000001 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;   path = entitlements.plist;            sourceTree = "<group>"; };
+		B100002200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCleaner.swift;           sourceTree = "<group>"; };
+		B100002001000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Archive.swift;                        path = ZIPFoundation/Archive.swift;                        sourceTree = "<group>"; };
+		B100002002000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+BackingConfiguration.swift"; path = "ZIPFoundation/Archive+BackingConfiguration.swift"; sourceTree = "<group>"; };
+		B100002003000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Deprecated.swift";           path = "ZIPFoundation/Archive+Deprecated.swift";           sourceTree = "<group>"; };
+		B100002004000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Helpers.swift";              path = "ZIPFoundation/Archive+Helpers.swift";              sourceTree = "<group>"; };
+		B100002005000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+MemoryFile.swift";           path = "ZIPFoundation/Archive+MemoryFile.swift";           sourceTree = "<group>"; };
+		B100002006000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Progress.swift";             path = "ZIPFoundation/Archive+Progress.swift";             sourceTree = "<group>"; };
+		B100002007000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Reading.swift";              path = "ZIPFoundation/Archive+Reading.swift";              sourceTree = "<group>"; };
+		B100002008000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+ReadingDeprecated.swift";    path = "ZIPFoundation/Archive+ReadingDeprecated.swift";    sourceTree = "<group>"; };
+		B100002009000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+Writing.swift";              path = "ZIPFoundation/Archive+Writing.swift";              sourceTree = "<group>"; };
+		B100002010000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+WritingDeprecated.swift";    path = "ZIPFoundation/Archive+WritingDeprecated.swift";    sourceTree = "<group>"; };
+		B100002011000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Archive+ZIP64.swift";                path = "ZIPFoundation/Archive+ZIP64.swift";                sourceTree = "<group>"; };
+		B100002012000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Data+Compression.swift";             path = "ZIPFoundation/Data+Compression.swift";             sourceTree = "<group>"; };
+		B100002013000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Data+CompressionDeprecated.swift";   path = "ZIPFoundation/Data+CompressionDeprecated.swift";   sourceTree = "<group>"; };
+		B100002014000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Data+Serialization.swift";           path = "ZIPFoundation/Data+Serialization.swift";           sourceTree = "<group>"; };
+		B100002015000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Date+ZIP.swift";                     path = "ZIPFoundation/Date+ZIP.swift";                     sourceTree = "<group>"; };
+		B100002016000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Entry.swift;                          path = ZIPFoundation/Entry.swift;                          sourceTree = "<group>"; };
+		B100002017000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Entry+Serialization.swift";          path = "ZIPFoundation/Entry+Serialization.swift";          sourceTree = "<group>"; };
+		B100002018000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Entry+ZIP64.swift";                  path = "ZIPFoundation/Entry+ZIP64.swift";                  sourceTree = "<group>"; };
+		B100002019000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FileManager+ZIP.swift";              path = "ZIPFoundation/FileManager+ZIP.swift";              sourceTree = "<group>"; };
+		B100002020000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FileManager+ZIPDeprecated.swift";    path = "ZIPFoundation/FileManager+ZIPDeprecated.swift";    sourceTree = "<group>"; };
+		B100002021000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "URL+ZIP.swift";                      path = "ZIPFoundation/URL+ZIP.swift";                      sourceTree = "<group>"; };
+		D100000100000001 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppDataManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E100000100000001 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F100000000000001 = {
+			isa = PBXGroup;
+			children = (F100000100000001, F100000200000001, F100000300000001);
+			sourceTree = "<group>";
+		};
+		F100000100000001 = {
+			isa = PBXGroup;
+			children = (
+				B100000100000001, B100000200000001, B100000300000001,
+				B100000400000001, B100000500000001, B100000600000001,
+				B100000700000001, B100000900000001,
+				B100001000000001, B100001100000001, B100001200000001,
+				B100001400000001, B100001500000001,
+				B100001600000001, B100001700000001,
+				B100002200000001,
+				B100001800000001, B100001900000001,
+			);
+			path = AppDataManager;
+			sourceTree = "<group>";
+		};
+		F100000200000001 = {
+			isa = PBXGroup;
+			children = (
+				B100002001000001, B100002002000001, B100002003000001,
+				B100002004000001, B100002005000001, B100002006000001,
+				B100002007000001, B100002008000001, B100002009000001,
+				B100002010000001, B100002011000001, B100002012000001,
+				B100002013000001, B100002014000001, B100002015000001,
+				B100002016000001, B100002017000001, B100002018000001,
+				B100002019000001, B100002020000001, B100002021000001,
+			);
+			name = ZIPFoundation;
+			path = AppDataManager;
+			sourceTree = "<group>";
+		};
+		F100000300000001 = {
+			isa = PBXGroup;
+			children = (D100000100000001);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T100000100000001 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X100000100000001;
+			buildPhases = (E100000000000001, E100000100000001, E100000200000001);
+			buildRules = ();
+			dependencies = ();
+			name = AppDataManager;
+			productName = AppDataManager;
+			productReference = D100000100000001;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P100000100000001 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1420;
+				LastUpgradeCheck = 1420;
+				TargetAttributes = { T100000100000001 = { CreatedOnToolsVersion = 14.2; }; };
+			};
+			buildConfigurationList = X100000000000001;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = F100000000000001;
+			productRefGroup = F100000300000001;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (T100000100000001);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E100000200000001 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E100000000000001 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000100000001, A100000200000001, A100000300000001,
+				A100000400000001, A100000500000001, A100000600000001,
+				A100000700000001, A100000900000001,
+				A100001000000001, A100001100000001, A100001200000001,
+				A100001400000001, A100001500000001,
+				A100001600000001, A100001700000001,
+				A100001800000001,
+				A100002001000001, A100002002000001, A100002003000001,
+				A100002004000001, A100002005000001, A100002006000001,
+				A100002007000001, A100002008000001, A100002009000001,
+				A100002010000001, A100002011000001, A100002012000001,
+				A100002013000001, A100002014000001, A100002015000001,
+				A100002016000001, A100002017000001, A100002018000001,
+				A100002019000001, A100002020000001, A100002021000001,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		XC00000100000001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0; ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos; SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		XC00000200000001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		XC00000300000001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
+				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1; EXCLUDED_ARCHS = arm64e;
+				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-lcompression";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "SWIFT_PACKAGE";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2"; VALID_ARCHS = arm64;
+			};
+			name = Debug;
+		};
+		XC00000400000001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = AppDataManager/entitlements.plist;
+				CODE_SIGN_IDENTITY = ""; CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1; EXCLUDED_ARCHS = arm64e;
+				GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = AppDataManager/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-lcompression";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yourname.appdatamanager";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "SWIFT_PACKAGE";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2"; VALID_ARCHS = arm64;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		X100000000000001 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (XC00000100000001, XC00000200000001);
+			defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;
+		};
+		X100000100000001 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (XC00000300000001, XC00000400000001);
+			defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = P100000100000001;
+}

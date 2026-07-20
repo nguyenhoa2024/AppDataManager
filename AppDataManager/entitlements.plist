@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Chi giu quyen thuc su can de doc/ghi container cua app khac.
+  Da bo so voi ban goc:
+    springboard.debugapplications, backboardd.launchapplications
+        -> chi can khi muon launch/kill app bat ky, app nay khong lam viec do
+    private.memorystatus, private.signal-exception
+        -> chi can khi kill hang loat tien trinh
+-->
+<plist version="1.0"><dict>
+    <key>platform-application</key>                                 <true/>
+    <key>com.apple.private.security.no-container</key>              <true/>
+    <key>com.apple.private.security.no-sandbox</key>                <true/>
+    <key>com.apple.private.security.container-required</key>        <false/>
+    <key>com.apple.private.security.storage.AppDataContainers</key> <true/>
+    <key>com.apple.private.MobileContainerManager.allowed</key>     <true/>
+    <key>com.apple.private.skip-library-validation</key>            <true/>
+
+    <!-- Can de backup/restore keychain cua app duoc chon.
+         "*" la dieu kien de doc duoc keychain ngoai app nay;
+         viec loc theo access group nao duoc lam trong KeychainManager. -->
+    <key>keychain-access-groups</key><array><string>*</string></array>
+</dict></plist>

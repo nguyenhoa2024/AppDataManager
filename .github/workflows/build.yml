@@ -1,0 +1,151 @@
+name: Build AppDataManager TIPA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SCHEME: AppDataManager
+  APP_NAME: AppDataManager
+  ZIP_FOUNDATION_VERSION: 0.9.19
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      # ZIPFoundation duoc nhung o dang source thay vi dung SPM.
+      # Ly do: TrollStore cai app khong ky, dynamic framework se khong load duoc;
+      # nhung file .swift nay vao thang target thi chi con mot binary duy nhat.
+      - name: Cache ZIPFoundation source
+        uses: actions/cache@v4
+        with:
+          path: .spm-packages
+          key: zipfoundation-${{ env.ZIP_FOUNDATION_VERSION }}-v1
+
+      - name: Embed ZIPFoundation
+        run: |
+          set -euo pipefail
+          if [ ! -d ".spm-packages/ZIPFoundation" ]; then
+            curl -fsSL \
+              "https://github.com/weichsel/ZIPFoundation/archive/refs/tags/${ZIP_FOUNDATION_VERSION}.tar.gz" \
+              -o /tmp/zip.tar.gz
+            tar -xzf /tmp/zip.tar.gz -C /tmp/
+            mkdir -p .spm-packages/ZIPFoundation
+            cp "/tmp/ZIPFoundation-${ZIP_FOUNDATION_VERSION}/Sources/ZIPFoundation/"*.swift \
+              .spm-packages/ZIPFoundation/
+          fi
+          mkdir -p "${APP_NAME}/ZIPFoundation"
+          cp .spm-packages/ZIPFoundation/*.swift "${APP_NAME}/ZIPFoundation/"
+          echo "ZIPFoundation: $(ls "${APP_NAME}/ZIPFoundation/" | wc -l | tr -d ' ') files"
+
+      - name: Install ldid
+        run: brew list ldid >/dev/null 2>&1 || brew install ldid
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild clean build \
+            -project "${APP_NAME}.xcodeproj" \
+            -scheme "${SCHEME}" \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            SYMROOT=build \
+            ARCHS=arm64 \
+            VALID_ARCHS=arm64 \
+            EXCLUDED_ARCHS=arm64e \
+            ONLY_ACTIVE_ARCH=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            2>&1 | tee build_log.txt || { tail -200 build_log.txt; exit 1; }
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_log.txt
+          retention-days: 3
+
+      - name: Verify binary
+        run: |
+          BIN="build/Release-iphoneos/${APP_NAME}.app/${APP_NAME}"
+          test -f "$BIN" || { echo "Khong tim thay binary: $BIN"; exit 1; }
+          file "$BIN"
+          lipo -info "$BIN"
+
+      # Ky gia (fake-sign) bang ldid: gan entitlements vao binary ma khong can
+      # certificate cua Apple. TrollStore chap nhan chu ky nay.
+      - name: Sign with ldid
+        run: |
+          ldid -S"${APP_NAME}/entitlements.plist" \
+            "build/Release-iphoneos/${APP_NAME}.app/${APP_NAME}"
+
+      - name: Verify entitlements
+        run: |
+          ENTS=$(ldid -e "build/Release-iphoneos/${APP_NAME}.app/${APP_NAME}")
+          echo "$ENTS"
+          echo "$ENTS" | grep -q "AppDataContainers" \
+            || { echo "Thieu entitlement AppDataContainers"; exit 1; }
+          echo "$ENTS" | grep -q "keychain-access-groups" \
+            || { echo "Thieu entitlement keychain-access-groups"; exit 1; }
+
+      # .tipa chi la file .ipa doi duoi — TrollStore nhan ca hai.
+      # Dung -X de khong nhet metadata cua macOS vao archive.
+      - name: Package .tipa
+        run: |
+          mkdir -p Payload
+          cp -r "build/Release-iphoneos/${APP_NAME}.app" Payload/
+          /usr/bin/zip -qr -X "${APP_NAME}.tipa" Payload/
+          rm -rf Payload
+          ls -lh "${APP_NAME}.tipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-tipa
+          path: ${{ env.APP_NAME }}.tipa
+          retention-days: 30
+
+      - name: Tag
+        if: github.event_name != 'pull_request'
+        id: tag
+        run: echo "TAG=v1.0-$(date +'%Y%m%d-%H%M')" >> "$GITHUB_OUTPUT"
+
+      - name: Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: "AppDataManager ${{ steps.tag.outputs.TAG }}"
+          body: |
+            ## App Data Manager — TrollStore TIPA
+
+            Cong cu quan ly du lieu app tren thiet bi cua chinh ban:
+            backup, restore, xoa du lieu, xem duong dan container.
+
+            **Cai dat:** TrollStore -> Install IPA -> chon `AppDataManager.tipa`
+            **Yeu cau:** iOS 15.0+ · TrollStore · arm64
+
+            ### Tinh nang
+            - Backup du lieu app ra file .zip (kem keychain cua rieng app do)
+            - Restore lai tu ban backup
+            - Reset du lieu app ve trang thai vua cai
+            - Xem cau truc container / app group / plugin
+            - Log realtime ngay trong app
+          files: ${{ env.APP_NAME }}.tipa
+          make_latest: true
+          draft: false
