@@ -21,17 +21,23 @@ enum KeychainManager {
 
     /// Tim cac access group thuoc ve `bundleID`.
     ///
-    /// Hai nguon:
-    ///  1. Suy ra tu chinh bundleID (bundleID va vendor prefix, vd com.example).
-    ///  2. Quet keychain thuc te, lay group nao co duoi la bundleID/vendor —
-    ///     bat duoc dang co team ID dung truoc, vd "ABCDE12345.com.example.app".
+    /// Ba nguon, quan trong nhat la (1):
+    ///  1. Doc THANG tu entitlements cua app — chinh xac tuyet doi. Nhieu app
+    ///     dung nhom keychain khong lien quan gi ten bundle (vd LINE
+    ///     jp.naver.line lai luu session o "ZW4U99SQQ3.com.linecorp.trident.shared").
+    ///     Neu chi suy tu bundleID se bo sot -> restore khong lay lai duoc session.
+    ///  2. Suy tu chinh bundleID (bundleID va vendor prefix).
+    ///  3. Quet keychain thuc te, lay group co duoi khop bundleID/vendor.
     static func resolveAccessGroups(bundleID: String) -> [String] {
         let parts  = bundleID.components(separatedBy: ".")
         let vendor = parts.count >= 2 ? "\(parts[0]).\(parts[1])" : bundleID
 
         var groups = Set([bundleID, vendor])
 
-        // Quet ca hai class: app chi luu internet password se khong lo ra
+        // (1) Tu entitlements — nguon dang tin nhat
+        groups.formUnion(entitlementKeychainGroups(bundleID: bundleID))
+
+        // (3) Quet ca hai class: app chi luu internet password se khong lo ra
         // group co team ID neu chi quet generic password.
         for cls in itemClasses {
             let query: [String: Any] = [
@@ -64,6 +70,43 @@ enum KeychainManager {
     private static func belongs(_ item: [String: Any], to groups: Set<String>) -> Bool {
         guard let g = item[kSecAttrAccessGroup as String] as? String else { return false }
         return groups.contains(g)
+    }
+
+    /// Doc danh sach `keychain-access-groups` tu entitlements nhung trong
+    /// binary cua app. Entitlements luu duoi dang plist XML text trong chu ky
+    /// so, nen tim chuoi key roi bat cac <string> ngay sau la lay duoc.
+    static func entitlementKeychainGroups(bundleID: String) -> [String] {
+        guard let bundleDir = resolveBundlePath(bundleID: bundleID),
+              let contents = try? FileManager.default.contentsOfDirectory(
+                  at: bundleDir, includingPropertiesForKeys: nil, options: []),
+              let dotApp = contents.first(where: { $0.pathExtension == "app" }),
+              let info   = readPlist(dotApp.appendingPathComponent("Info.plist")),
+              let exe    = info["CFBundleExecutable"] as? String
+        else { return [] }
+
+        let binURL = dotApp.appendingPathComponent(exe)
+        // mmap: binary co the vai tram MB, khong nap het vao RAM
+        guard let data = try? Data(contentsOf: binURL, options: .mappedIfSafe),
+              let keyRange = data.range(of: Data("keychain-access-groups".utf8))
+        else { return [] }
+
+        // Cua so 8KB sau key du chua vai group
+        let end  = min(data.count, keyRange.upperBound + 8192)
+        let tail = data.subdata(in: keyRange.upperBound ..< end)
+        guard let s = String(data: tail, encoding: .ascii) ?? String(data: tail, encoding: .utf8),
+              let arrEnd = s.range(of: "</array>")
+        else { return [] }
+
+        var groups = [String]()
+        var rest = s[s.startIndex ..< arrEnd.lowerBound]
+        while let open = rest.range(of: "<string>"),
+              let close = rest.range(of: "</string>"),
+              open.upperBound <= close.lowerBound {
+            groups.append(String(rest[open.upperBound ..< close.lowerBound]))
+            rest = rest[close.upperBound...]
+        }
+        if !groups.isEmpty { plog("keychain groups tu entitlements \(bundleID): \(groups)") }
+        return groups
     }
 
     // MARK: - Backup

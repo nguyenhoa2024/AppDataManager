@@ -2,6 +2,12 @@
 
 Mỗi bản build có "build tag" dạng `v<version>-<ngày>-<giờ>` hiện ngay ở đầu màn hình chính và trong Cài đặt → so với dòng dưới đây là biết máy đang chạy bản nào.
 
+## v1.3
+
+- **Sửa gốc lỗi keychain — vá cả 3 triệu chứng cùng lúc:** LINE restore xong vẫn đòi xác thực; Facebook reset xong vẫn còn đăng nhập. Nguyên nhân chung: nhiều app dùng nhóm keychain **không suy được từ bundle ID** (LINE: `ZW4U99SQQ3.com.linecorp.trident.shared`; FB: `T84QZS65DQ.platformFamily`) nên bộ lọc cũ bỏ sót → reset không xoá, backup không lưu. Nay **đọc thẳng `keychain-access-groups` từ entitlements của app** nên bắt đúng mọi nhóm. Reset xoá sạch, backup/restore giữ được session.
+- **Backup gộp:** chọn nhiều app để backup thì ra **1 file duy nhất** chứa tất cả (format v3), restore 1 phát khôi phục hết. Vẫn restore được backup cũ (v1/v2).
+- **Hiện logo app** trong màn chọn app (dùng icon service của hệ thống).
+
 ## v1.2
 
 - **Backup giờ là FULL.** Trước chỉ lưu vài thư mục con của container chính nên mất session (đã test hụt trên LINE). Nay lưu **toàn bộ** container chính + **tất cả app group** + **plugin container** + keychain. Chỉ bỏ `tmp` và `Library/Caches` (iOS coi là vứt được, không chứa session). Restore khôi phục lại đúng các chỗ đó → session sống sót qua backup→reset→restore.

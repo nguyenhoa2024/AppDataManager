@@ -83,9 +83,11 @@ final class BackupListViewController: UIViewController,
         cell.backgroundColor            = C.cellBg
         cell.textLabel?.textColor       = .white
         cell.detailTextLabel?.textColor = C.grayText
-        cell.textLabel?.text = "\(e.displayName)  ·  \(DateFormatter.display.string(from: e.backupDate))"
+        cell.textLabel?.numberOfLines = 2
+        cell.textLabel?.text = e.displayName
         let fmt = ByteCountFormatter(); fmt.countStyle = .file
-        cell.detailTextLabel?.text = "\(e.bundleID)  ·  \(fmt.string(fromByteCount: e.fileSize))"
+        cell.detailTextLabel?.text = "\(DateFormatter.display.string(from: e.backupDate))  ·  "
+            + "\(e.apps.count) app  ·  \(fmt.string(fromByteCount: e.fileSize))"
         cell.accessoryType = .disclosureIndicator
         return cell
     }

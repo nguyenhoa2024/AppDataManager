@@ -114,6 +114,13 @@ final class AppSelectViewController: UIViewController,
         cell.textLabel?.text       = item.displayName
         cell.detailTextLabel?.text = item.bundleID
         cell.accessoryType = selectedIDs.contains(item.bundleID) ? .checkmark : .none
+
+        // Logo app
+        cell.imageView?.image = AppIconLoader.icon(for: item.bundleID)
+            ?? UIImage(systemName: "app.dashed")
+        cell.imageView?.tintColor = C.grayText
+        cell.imageView?.layer.cornerRadius = 9
+        cell.imageView?.clipsToBounds = true
         return cell
     }
 

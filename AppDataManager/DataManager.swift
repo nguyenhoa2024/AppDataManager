@@ -218,31 +218,35 @@ final class DataManager {
         }.count
     }
 
-    private func pruneOldBackups(for bundleID: String) {
-        let limit = Settings.shared.maxBackupsPerApp
-        let dir   = PathConfig.backupDir(for: bundleID)
-        guard let files = try? fm.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: [.creationDateKey], options: []) else { return }
-        let zips = files.filter { $0.pathExtension == "zip" }.sorted {
-            let d1 = (try? $0.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-            let d2 = (try? $1.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-            return d1 > d2
-        }
-        if zips.count > limit {
-            zips.dropFirst(limit).forEach { try? fm.removeItem(at: $0) }
-        }
-    }
 
     // MARK: - API cong khai
 
-    /// `completion` nhan ve danh sach app THANH CONG — quan trong voi
-    /// backupThenReset, xem giai thich o duoi.
+    /// Backup cac app da chon vao MOT file duy nhat (backup gop).
+    /// `completion` nhan ve danh sach app backup thanh cong.
     func backupApps(items: [AppItem],
                     progress: @escaping (String) -> Void,
                     completion: @escaping ([AppItem]) -> Void) {
-        run(items: items, taskName: "backup", progress: progress, completion: completion) { item in
-            try self.backupOne(item: item)
-            return "Da luu \(item.displayName)"
+        guard !items.isEmpty else {
+            DispatchQueue.main.async { progress("Chon it nhat 1 app"); completion([]) }
+            return
+        }
+        let task = BackgroundTask(name: "appdatamanager.backup")
+        ioQueue.async {
+            var succeeded = [AppItem]()
+            do {
+                succeeded = try self.backupCombined(items: items, progress: progress)
+                DispatchQueue.main.async {
+                    progress("Backup xong \(succeeded.count)/\(items.count) app → 1 file")
+                }
+            } catch {
+                plog("backup loi: \(error)")
+                DispatchQueue.main.async { progress("Loi backup: \(error.localizedDescription)") }
+            }
+            // Tu dong dong cac app da chon sau khi xong
+            killAppsAndWait(processNames: items.map { $0.processName })
+            DispatchQueue.main.async { progress("Da dong \(items.count) app") }
+            task.end()
+            DispatchQueue.main.async { completion(succeeded) }
         }
     }
 
@@ -332,78 +336,126 @@ final class DataManager {
         }
     }
 
-    // MARK: - Backup mot app
+    // MARK: - Backup gop nhieu app vao 1 file
 
-    private func backupOne(item: AppItem) throws {
-        let containers = resolveAllContainers(bundleID: item.bundleID)
-        guard let mainURL = containers.data
-        else { throw AppError.containerNotFound(item.bundleID) }
-
-        plog("backup: \(item.bundleID) (\(containers.appGroups.count) group, \(containers.plugins.count) plugin)")
-
-        // Uoc luong dung luong tren TAT CA container de kiem tra bo nho
-        var size = dirSize(mainURL)
-        for (_, url) in containers.appGroups { size += dirSize(url) }
-        for (_, url) in containers.plugins   { size += dirSize(url) }
+    /// Backup tat ca `items` vao 1 zip duy nhat. Tra ve cac app thanh cong.
+    /// Cau truc zip (format v3):
+    ///   manifest.json        { version:"3", backupDate, apps:[{...}] }
+    ///   apps/<bundleID>/data/…
+    ///   apps/<bundleID>/groups/<gid>/…
+    ///   apps/<bundleID>/plugins/<pid>/…
+    ///   apps/<bundleID>/keychain.json
+    private func backupCombined(items: [AppItem],
+                                progress: @escaping (String) -> Void) throws -> [AppItem] {
+        // Uoc luong tong dung luong de kiem tra bo nho
+        var size: Int64 = 0
+        for item in items {
+            let c = resolveAllContainers(bundleID: item.bundleID)
+            if let m = c.data { size += dirSize(m) }
+            for (_, u) in c.appGroups { size += dirSize(u) }
+            for (_, u) in c.plugins   { size += dirSize(u) }
+        }
         let free = freeSpace()
-        // free == 0 nghia la khong doc duoc dung luong trong (khong phai la
-        // het bo nho) — cu chay tiep, de buoc zip bao loi that neu thieu cho.
         if size > 0 && free > 0 && free < size * 2 {
             throw AppError.insufficientDiskSpace(needed: size * 2, available: free)
         }
 
-        // Dong app truoc khi copy, tranh copy phai file dang duoc ghi do
-        killAppAndWait(processName: item.processName)
-
-        let destDir = PathConfig.backupDir(for: item.bundleID)
-        try fm.createDirectory(at: destDir, withIntermediateDirectories: true)
-        let stamp  = DateFormatter.fileStamp.string(from: Date())
-        let zipURL = destDir.appendingPathComponent("\(item.bundleID)_\(stamp).zip")
+        // Dong tat ca app truoc khi copy
+        killAppsAndWait(processNames: items.map { $0.processName })
 
         let tempRoot = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? fm.removeItem(at: tempRoot) }
         try fm.createDirectory(at: tempRoot, withIntermediateDirectories: true)
 
-        // data/  — TOAN BO container chinh
-        copyContainerTree(from: mainURL, to: tempRoot.appendingPathComponent("data"))
-
-        // groups/<gid>/ — tung app group (session cua nhieu app nam o day)
-        var groupIDs = [String]()
-        for (gid, url) in containers.appGroups {
-            copyContainerTree(from: url, to: tempRoot.appendingPathComponent("groups/\(gid)"))
-            groupIDs.append(gid)
+        var appManifests = [[String: Any]]()
+        var succeeded    = [AppItem]()
+        let total = items.count
+        for (i, item) in items.enumerated() {
+            let step = "[\(i + 1)/\(total)]"
+            DispatchQueue.main.async { progress("\(step) Backup \(item.displayName)...") }
+            do {
+                let m = try self.stageAppBackup(
+                    item: item, into: tempRoot.appendingPathComponent("apps/\(item.bundleID)"))
+                appManifests.append(m)
+                succeeded.append(item)
+                DispatchQueue.main.async { progress("\(step) \(item.displayName) ✓") }
+            } catch {
+                plog("backup loi \(item.bundleID): \(error)")
+                DispatchQueue.main.async {
+                    progress("\(step) Loi \(item.displayName): \(error.localizedDescription)")
+                }
+            }
         }
-
-        // plugins/<pid>/ — extension, widget, share sheet...
-        var pluginIDs = [String]()
-        for (pid, url) in containers.plugins {
-            copyContainerTree(from: url, to: tempRoot.appendingPathComponent("plugins/\(pid)"))
-            pluginIDs.append(pid)
-        }
+        guard !succeeded.isEmpty else { throw AppError.nothingSelected }
 
         let manifest: [String: Any] = [
-            "bundleID":    item.bundleID,
-            "displayName": item.displayName,
-            "processName": item.processName,
-            "backupDate":  ISO8601DateFormatter.shared.string(from: Date()),
-            "version":     "2",
-            "appGroups":   groupIDs,
-            "plugins":     pluginIDs,
+            "version":    "3",
+            "backupDate": ISO8601DateFormatter.shared.string(from: Date()),
+            "apps":       appManifests,
         ]
         try JSONSerialization.data(withJSONObject: manifest, options: .prettyPrinted)
             .write(to: tempRoot.appendingPathComponent("manifest.json"))
 
-        let keychainItems = KeychainManager.backup(bundleID: item.bundleID)
-        if let data = try? JSONSerialization.data(withJSONObject: keychainItems,
-                                                  options: .prettyPrinted) {
-            try? data.write(to: tempRoot.appendingPathComponent("keychain.json"))
-        }
-
+        let destDir = PathConfig.backupRoot
+        try fm.createDirectory(at: destDir, withIntermediateDirectories: true)
+        let stamp  = DateFormatter.fileStamp.string(from: Date())
+        let zipURL = destDir.appendingPathComponent("backup_\(stamp).zip")
         if fm.fileExists(atPath: zipURL.path) { try? fm.removeItem(at: zipURL) }
         try fm.zipItem(at: tempRoot, to: zipURL,
                        shouldKeepParent: false, compressionMethod: .deflate)
-        pruneOldBackups(for: item.bundleID)
-        plog("backup xong: \(zipURL.lastPathComponent) (\(keychainItems.count) keychain)")
+        pruneCombinedBackups()
+        plog("backup gop xong: \(zipURL.lastPathComponent), \(succeeded.count) app")
+        return succeeded
+    }
+
+    /// Chep du lieu 1 app vao thu muc `appDir` (data/groups/plugins/keychain),
+    /// tra ve manifest entry cua app do.
+    private func stageAppBackup(item: AppItem, into appDir: URL) throws -> [String: Any] {
+        let containers = resolveAllContainers(bundleID: item.bundleID)
+        guard let mainURL = containers.data
+        else { throw AppError.containerNotFound(item.bundleID) }
+        try fm.createDirectory(at: appDir, withIntermediateDirectories: true)
+
+        copyContainerTree(from: mainURL, to: appDir.appendingPathComponent("data"))
+
+        var groupIDs = [String]()
+        for (gid, url) in containers.appGroups {
+            copyContainerTree(from: url, to: appDir.appendingPathComponent("groups/\(gid)"))
+            groupIDs.append(gid)
+        }
+        var pluginIDs = [String]()
+        for (pid, url) in containers.plugins {
+            copyContainerTree(from: url, to: appDir.appendingPathComponent("plugins/\(pid)"))
+            pluginIDs.append(pid)
+        }
+
+        let keychainItems = KeychainManager.backup(bundleID: item.bundleID)
+        if let data = try? JSONSerialization.data(withJSONObject: keychainItems, options: []) {
+            try? data.write(to: appDir.appendingPathComponent("keychain.json"))
+        }
+        plog("  staged \(item.bundleID): \(groupIDs.count) group, \(pluginIDs.count) plugin, \(keychainItems.count) keychain")
+
+        return [
+            "bundleID":    item.bundleID,
+            "displayName": item.displayName,
+            "processName": item.processName,
+            "appGroups":   groupIDs,
+            "plugins":     pluginIDs,
+        ]
+    }
+
+    /// Giu lai `maxBackupsPerApp` file backup gop moi nhat o thu muc goc.
+    private func pruneCombinedBackups() {
+        guard let files = try? fm.contentsOfDirectory(
+            at: PathConfig.backupRoot, includingPropertiesForKeys: [.creationDateKey],
+            options: [.skipsHiddenFiles]) else { return }
+        let zips = files.filter { $0.pathExtension == "zip" }.sorted {
+            let d1 = (try? $0.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+            let d2 = (try? $1.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+            return d1 > d2
+        }
+        let limit = Settings.shared.maxBackupsPerApp
+        if zips.count > limit { zips.dropFirst(limit).forEach { try? fm.removeItem(at: $0) } }
     }
 
     // MARK: - Xoa du lieu mot app
@@ -502,78 +554,46 @@ final class DataManager {
                     try self.extractSkippingSymlinks(zipURL: zipURL, to: tmp)
 
                     let data = try Data(contentsOf: tmp.appendingPathComponent("manifest.json"))
-                    guard let manifest    = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let bundleID    = manifest["bundleID"]    as? String,
-                          let displayName = manifest["displayName"] as? String
+                    guard let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                     else { throw AppError.invalidManifest }
 
-                    let containers = resolveAllContainers(bundleID: bundleID)
-                    guard let mainURL = containers.data
-                    else { throw AppError.containerNotFound(bundleID) }
-
-                    let proc = (manifest["processName"] as? String)
-                        ?? String(bundleID.components(separatedBy: ".").last?.prefix(15) ?? "")
-                    killAppAndWait(processName: proc)
-
-                    plog("restore: \(displayName) → \(mainURL.lastPathComponent)")
-
-                    if self.fm.fileExists(atPath: tmp.appendingPathComponent("data").path) {
-                        // ── Format v2: data/ + groups/<gid>/ + plugins/<pid>/ ──
-                        self.restoreContainerTree(
-                            from: tmp.appendingPathComponent("data"), to: mainURL)
-                        plog("  restored: data container")
-
-                        for gid in (manifest["appGroups"] as? [String]) ?? [] {
-                            let src = tmp.appendingPathComponent("groups/\(gid)")
-                            guard let dst = containers.appGroups.first(where: { $0.0 == gid })?.1 else {
-                                plog("  bo qua group (khong resolve): \(gid)"); continue
+                    let resultMsg: String
+                    if let apps = manifest["apps"] as? [[String: Any]] {
+                        // ── Format v3: backup gop, moi app o apps/<bundleID>/ ──
+                        var names = [String]()
+                        for appM in apps {
+                            guard let bid = appM["bundleID"] as? String else { continue }
+                            let ok = self.restoreOneApp(
+                                appDir: tmp.appendingPathComponent("apps/\(bid)"), manifest: appM)
+                            let dn = (appM["displayName"] as? String) ?? bid
+                            if ok {
+                                names.append(dn)
+                                plog("restore: \(dn) ✓")
+                            } else {
+                                plog("restore: bo qua \(dn) (khong tim container)")
                             }
-                            self.restoreContainerTree(from: src, to: dst)
-                            plog("  restored group: \(gid)")
                         }
-                        for pid in (manifest["plugins"] as? [String]) ?? [] {
-                            let src = tmp.appendingPathComponent("plugins/\(pid)")
-                            guard let dst = containers.plugins.first(where: { $0.0 == pid })?.1 else {
-                                plog("  bo qua plugin (khong resolve): \(pid)"); continue
-                            }
-                            self.restoreContainerTree(from: src, to: dst)
-                            plog("  restored plugin: \(pid)")
-                        }
+                        guard !names.isEmpty else { throw AppError.containerNotFound("khong app nao") }
+                        resultMsg = "Restore xong: \(names.joined(separator: ", ")) ✓"
                     } else {
-                        // ── Format v1 (backup cu): chi co container/<sub> ──
-                        for sub in Settings.shared.backupSubdirs {
-                            autoreleasepool {
-                                let src = tmp.appendingPathComponent("container/\(sub)")
-                                guard self.fm.fileExists(atPath: src.path) else { return }
-                                let dst = mainURL.appendingPathComponent(sub)
-                                if self.fm.fileExists(atPath: dst.path) {
-                                    self.wipeContentsRecursive(of: dst)
-                                    try? self.fm.removeItem(at: dst)
-                                }
-                                let isDir = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                                if isDir { self.copyDirFull(from: src, to: dst) }
-                                else { try? self.fm.copyItem(at: src, to: dst) }
-                                plog("  restored: \(sub)")
-                            }
-                        }
+                        // ── Format cu (v1/v2): 1 app moi file ──
+                        guard let bundleID = manifest["bundleID"] as? String
+                        else { throw AppError.invalidManifest }
+                        let dn = (manifest["displayName"] as? String) ?? bundleID
+                        let single: [String: Any] = [
+                            "bundleID":    bundleID,
+                            "processName": manifest["processName"] as? String ?? "",
+                            "appGroups":   manifest["appGroups"] as? [String] ?? [],
+                            "plugins":     manifest["plugins"] as? [String] ?? [],
+                        ]
+                        // v2 co data/ ngay goc; v1 co container/<sub>
+                        let hasData = self.fm.fileExists(atPath: tmp.appendingPathComponent("data").path)
+                        _ = self.restoreOneApp(appDir: tmp, manifest: single, legacyV1: !hasData)
+                        resultMsg = "Restore xong: \(dn) ✓"
                     }
 
-                    if let kData  = try? Data(contentsOf: tmp.appendingPathComponent("keychain.json")),
-                       let kItems = try? JSONSerialization.jsonObject(with: kData) as? [[String: Any]] {
-                        KeychainManager.restore(items: kItems)
-                    }
-
-                    // Backup khong luu tmp/Library-Caches nen tao lai cho du khung,
-                    // tranh app crash vi thieu thu muc chuan.
-                    self.recreateContainerSkeleton(at: mainURL.path, isDataContainer: true)
-                    for (_, url) in containers.appGroups {
-                        self.recreateContainerSkeleton(at: url.path, isDataContainer: false)
-                    }
-
-                    // Dong app de lan mo sau nap lai du lieu vua restore
-                    killAppAndWait(processName: proc)
                     task.end()
-                    completion(.success("Restore xong: \(displayName) ✓"))
+                    completion(.success(resultMsg))
                 } catch {
                     // Ghi ro domain + code de sau con biet loi gi (vd "error 14")
                     let ns = error as NSError
@@ -583,6 +603,69 @@ final class DataManager {
                 }
             }
         }
+    }
+
+    /// Khoi phuc 1 app tu `appDir` (chua data/groups/plugins/keychain.json).
+    /// `legacyV1` = true khi la backup cu chi co container/<sub>.
+    /// Tra ve false neu khong tim thay container cua app.
+    @discardableResult
+    private func restoreOneApp(appDir: URL, manifest appM: [String: Any],
+                              legacyV1: Bool = false) -> Bool {
+        guard let bundleID = appM["bundleID"] as? String else { return false }
+        let containers = resolveAllContainers(bundleID: bundleID)
+        guard let mainURL = containers.data else {
+            plog("restore: khong tim container \(bundleID)"); return false
+        }
+        let procRaw = (appM["processName"] as? String) ?? ""
+        let proc = procRaw.isEmpty
+            ? String(bundleID.components(separatedBy: ".").last?.prefix(15) ?? "")
+            : procRaw
+        killAppAndWait(processName: proc)
+        plog("restore app: \(bundleID)")
+
+        if legacyV1 {
+            for sub in Settings.shared.backupSubdirs {
+                autoreleasepool {
+                    let src = appDir.appendingPathComponent("container/\(sub)")
+                    guard fm.fileExists(atPath: src.path) else { return }
+                    let dst = mainURL.appendingPathComponent(sub)
+                    if fm.fileExists(atPath: dst.path) {
+                        wipeContentsRecursive(of: dst); try? fm.removeItem(at: dst)
+                    }
+                    let isDir = (try? src.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                    if isDir { copyDirFull(from: src, to: dst) }
+                    else { try? fm.copyItem(at: src, to: dst) }
+                }
+            }
+        } else {
+            restoreContainerTree(from: appDir.appendingPathComponent("data"), to: mainURL)
+            for gid in (appM["appGroups"] as? [String]) ?? [] {
+                guard let dst = containers.appGroups.first(where: { $0.0 == gid })?.1 else {
+                    plog("  bo qua group (khong resolve): \(gid)"); continue
+                }
+                restoreContainerTree(from: appDir.appendingPathComponent("groups/\(gid)"), to: dst)
+                plog("  restored group: \(gid)")
+            }
+            for pid in (appM["plugins"] as? [String]) ?? [] {
+                guard let dst = containers.plugins.first(where: { $0.0 == pid })?.1 else {
+                    plog("  bo qua plugin (khong resolve): \(pid)"); continue
+                }
+                restoreContainerTree(from: appDir.appendingPathComponent("plugins/\(pid)"), to: dst)
+            }
+        }
+
+        if let kData  = try? Data(contentsOf: appDir.appendingPathComponent("keychain.json")),
+           let kItems = try? JSONSerialization.jsonObject(with: kData) as? [[String: Any]] {
+            KeychainManager.restore(items: kItems)
+        }
+
+        // Backup khong luu tmp/Library-Caches nen tao lai cho du khung
+        recreateContainerSkeleton(at: mainURL.path, isDataContainer: true)
+        for (_, url) in containers.appGroups {
+            recreateContainerSkeleton(at: url.path, isDataContainer: false)
+        }
+        killAppAndWait(processName: proc)   // dong app de lan mo sau nap du lieu moi
+        return true
     }
 
     /// Giai nen zip vao `dst`, bo qua entry symlink va entry co duong dan
@@ -622,33 +705,43 @@ final class DataManager {
 
     func loadAllBackups() -> [BackupEntry] {
         try? fm.createDirectory(at: PathConfig.backupRoot, withIntermediateDirectories: true)
-        guard let appDirs = try? fm.contentsOfDirectory(
-            at: PathConfig.backupRoot, includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]) else { return [] }
+        // Quet de quy: file gop moi nam o thu muc goc, backup cu nam trong
+        // thu muc con theo bundleID.
+        guard let en = fm.enumerator(at: PathConfig.backupRoot,
+            includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles])
+        else { return [] }
 
         var entries = [BackupEntry]()
-        for appDir in appDirs {
-            guard let files = try? fm.contentsOfDirectory(
-                at: appDir, includingPropertiesForKeys: [.fileSizeKey], options: [])
-            else { continue }
-            for fileURL in files where fileURL.pathExtension == "zip" {
-                autoreleasepool {
-                    // Doc manifest truc tiep trong zip, khong can giai nen ca file
-                    guard let archive = try? Archive(url: fileURL, accessMode: .read),
-                          let entry   = archive["manifest.json"] else { return }
-                    var raw = Data()
-                    _ = try? archive.extract(entry, consumer: { raw.append($0) })
-                    guard let dict        = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
-                          let bundleID    = dict["bundleID"]    as? String,
-                          let displayName = dict["displayName"] as? String,
-                          let dateStr     = dict["backupDate"]  as? String,
-                          let date        = ISO8601DateFormatter.shared.date(from: dateStr)
-                    else { return }
-                    let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-                    entries.append(BackupEntry(zipURL: fileURL, bundleID: bundleID,
-                                               displayName: displayName, backupDate: date,
-                                               fileSize: Int64(size)))
+        for case let fileURL as URL in en where fileURL.pathExtension == "zip" {
+            autoreleasepool {
+                // Doc manifest truc tiep trong zip, khong can giai nen ca file
+                guard let archive = try? Archive(url: fileURL, accessMode: .read),
+                      let entry   = archive["manifest.json"] else { return }
+                var raw = Data()
+                _ = try? archive.extract(entry, consumer: { raw.append($0) })
+                guard let dict    = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
+                      let dateStr = dict["backupDate"] as? String,
+                      let date    = ISO8601DateFormatter.shared.date(from: dateStr)
+                else { return }
+
+                var apps = [BackupApp]()
+                if let arr = dict["apps"] as? [[String: Any]] {
+                    // Format v3: nhieu app
+                    for a in arr {
+                        if let bid = a["bundleID"] as? String {
+                            apps.append(BackupApp(bundleID: bid,
+                                                  displayName: (a["displayName"] as? String) ?? bid))
+                        }
+                    }
+                } else if let bid = dict["bundleID"] as? String {
+                    // Format cu: 1 app
+                    apps.append(BackupApp(bundleID: bid,
+                                          displayName: (dict["displayName"] as? String) ?? bid))
                 }
+                guard !apps.isEmpty else { return }
+                let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                entries.append(BackupEntry(zipURL: fileURL, backupDate: date,
+                                           fileSize: Int64(size), apps: apps))
             }
         }
         return entries.sorted { $0.backupDate > $1.backupDate }

@@ -5,8 +5,8 @@
     <key>CFBundleExecutable</key>        <string>AppDataManager</string>
     <key>CFBundleName</key>              <string>AppDataManager</string>
     <key>CFBundleDisplayName</key>       <string>App Data Manager</string>
-    <key>CFBundleVersion</key>           <string>3</string>
-    <key>CFBundleShortVersionString</key><string>1.2</string>
+    <key>CFBundleVersion</key>           <string>4</string>
+    <key>CFBundleShortVersionString</key><string>1.3</string>
     <key>ADMBuildTag</key>               <string>dev</string>
     <key>CFBundlePackageType</key>       <string>APPL</string>
     <key>NSPrincipalClass</key>          <string>UIApplication</string>

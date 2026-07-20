@@ -8,12 +8,27 @@ struct AppItem: Codable {
     let processName: String
 }
 
-struct BackupEntry {
-    let zipURL:      URL
+struct BackupApp {
     let bundleID:    String
     let displayName: String
-    let backupDate:  Date
-    var fileSize:    Int64 = 0
+}
+
+/// Mot file backup. Co the chua NHIEU app (backup gop): chon 2 app de backup
+/// thi ra 1 file duy nhat chua ca hai.
+struct BackupEntry {
+    let zipURL:     URL
+    let backupDate: Date
+    var fileSize:   Int64 = 0
+    let apps:       [BackupApp]
+
+    /// Ten hien thi: 1 app thi la ten app, nhieu app thi liet ke.
+    var displayName: String {
+        if apps.count == 1 { return apps[0].displayName }
+        return "\(apps.count) app: " + apps.map { $0.displayName }.joined(separator: ", ")
+    }
+
+    /// Dung cho cho nao con can 1 bundleID dai dien.
+    var bundleID: String { apps.first?.bundleID ?? "" }
 }
 
 enum PathConfig {
